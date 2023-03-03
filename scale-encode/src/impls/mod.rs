@@ -885,7 +885,6 @@ mod test {
         encode_type::<_, Foo>(source).unwrap_err();
     }
 
-    #[cfg(feature = "bits")]
     #[test]
     fn bits_roundtrip_ok() {
         use bitvec::{
@@ -934,7 +933,6 @@ mod test {
         );
     }
 
-    #[cfg(feature = "primitive-types")]
     #[test]
     fn hxxx_types_roundtrip_ok() {
         use ::primitive_types::{H128, H160, H256, H384, H512, H768};
@@ -1006,7 +1004,6 @@ mod test {
         )
     }
 
-    #[cfg(feature = "derive")]
     #[test]
     fn encode_as_fields_via_macro_works() {
         #[derive(TypeInfo, Encode)]
