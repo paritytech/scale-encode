@@ -141,8 +141,6 @@ assert_encodes_to(
 
 mod impls;
 
-use std::borrow::Cow;
-
 pub mod error;
 
 pub use error::Error;
@@ -201,27 +199,25 @@ pub trait EncodeAsFields {
 }
 
 /// A representation of a single field to be encoded via [`EncodeAsFields::encode_as_fields_to`].
+#[derive(Debug, Clone)]
 pub struct Field<'a> {
-    name: Option<Cow<'a, str>>,
+    name: Option<&'a str>,
     id: u32,
 }
 
 impl<'a> Field<'a> {
     /// Construct a new field with an ID and optional name.
-    pub fn new(id: u32, name: Option<impl Into<Cow<'a, str>>>) -> Self {
-        Field {
-            id,
-            name: name.map(Into::into),
-        }
+    pub fn new(id: u32, name: Option<&'a str>) -> Self {
+        Field { id, name }
     }
     /// Create a new unnamed field.
     pub fn unnamed(id: u32) -> Self {
         Field { name: None, id }
     }
     /// Create a new named field.
-    pub fn named(id: u32, name: impl Into<Cow<'a, str>>) -> Self {
+    pub fn named(id: u32, name: &'a str) -> Self {
         Field {
-            name: Some(name.into()),
+            name: Some(name),
             id,
         }
     }

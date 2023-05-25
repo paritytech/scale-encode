@@ -101,7 +101,7 @@ where
                 let fields = composite
                     .fields()
                     .iter()
-                    .map(|f| Field::new(f.ty().id(), f.name()));
+                    .map(|f| Field::new(f.ty().id(), f.name().map(|n| &**n)));
                 self.encode_as_fields_to(fields, types, out)
             }
             // We may have skipped through to some primitive or other type.

@@ -588,7 +588,10 @@ mod test {
 
         let encoded_as_fields = match type_def {
             scale_info::TypeDef::Composite(c) => {
-                let fields = c.fields().iter().map(|f| Field::new(f.ty().id(), f.name()));
+                let fields = c
+                    .fields()
+                    .iter()
+                    .map(|f| Field::new(f.ty().id(), f.name().map(|n| &**n)));
                 value.encode_as_fields(fields, &types).unwrap()
             }
             scale_info::TypeDef::Tuple(t) => {

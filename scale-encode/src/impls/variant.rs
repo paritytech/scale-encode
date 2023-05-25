@@ -81,7 +81,10 @@ where
                     return Err(Error::new(ErrorKind::CannotFindVariant { name: self.name.to_string(), expected: type_id }));
                 };
                 v.index().encode_to(out);
-                let fields = v.fields().iter().map(|f| Field::new(f.ty().id(), f.name()));
+                let fields = v
+                    .fields()
+                    .iter()
+                    .map(|f| Field::new(f.ty().id(), f.name().map(|n| &**n)));
                 self.fields.encode_as_fields_to(fields, types, out)
             }
             _ => Err(Error::new(ErrorKind::WrongShape {
