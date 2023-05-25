@@ -190,7 +190,7 @@ fn generate_struct_impl(
             }
         }
         impl #impl_generics #path_to_scale_encode::EncodeAsFields for #path_to_type #ty_generics #where_clause {
-            fn encode_as_fields_to<'__encode_as_field_lt, I: std::iter::Iterator<Item=#path_to_scale_encode::Field<'__encode_as_field_lt>> + Clone>(
+            fn encode_as_fields_to<'__encode_as_field_lt, I: #path_to_scale_encode::FieldIter<'__encode_as_field_lt>>(
                 &self,
                 // long variable names to prevent conflict with struct field names:
                 __encode_as_type_fields: I,

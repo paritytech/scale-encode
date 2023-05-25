@@ -15,7 +15,7 @@
 
 use crate::{
     error::{Error, ErrorKind, Kind, Location},
-    EncodeAsFields, EncodeAsType, Field,
+    EncodeAsFields, EncodeAsType, Field, FieldIter,
 };
 use scale_info::{PortableRegistry, TypeDef};
 use std::collections::HashMap;
@@ -132,7 +132,7 @@ impl<'a, Vals> EncodeAsFields for Composite<Vals>
 where
     Vals: ExactSizeIterator<Item = (Option<&'a str>, &'a dyn EncodeAsType)> + Clone,
 {
-    fn encode_as_fields_to<'b, I: Iterator<Item = Field<'b>> + Clone>(
+    fn encode_as_fields_to<'b, I: FieldIter<'b>>(
         &self,
         fields: I,
         types: &PortableRegistry,

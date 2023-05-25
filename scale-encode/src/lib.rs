@@ -178,7 +178,7 @@ pub trait EncodeAsType {
 /// tuple and struct types, and is automatically implemented via the [`macro@EncodeAsType`] macro.
 pub trait EncodeAsFields {
     /// Given some fields describing the shape of a type, attempt to encode to that shape.
-    fn encode_as_fields_to<'a, I: Iterator<Item = Field<'a>> + Clone>(
+    fn encode_as_fields_to<'a, I: FieldIter<'a>>(
         &self,
         fields: I,
         types: &PortableRegistry,
@@ -187,7 +187,7 @@ pub trait EncodeAsFields {
 
     /// This is a helper function which internally calls [`EncodeAsFields::encode_as_fields_to`]. Prefer to
     /// implement that instead.
-    fn encode_as_fields<'a, I: Iterator<Item = Field<'a>> + Clone>(
+    fn encode_as_fields<'a, I: FieldIter<'a>>(
         &self,
         fields: I,
         types: &PortableRegistry,
@@ -222,11 +222,15 @@ impl<'a> Field<'a> {
         }
     }
     /// The field name, if any.
-    pub fn name(&self) -> Option<&str> {
-        self.name.as_deref()
+    pub fn name(&self) -> Option<&'a str> {
+        self.name
     }
     /// The field ID.
     pub fn id(&self) -> u32 {
         self.id
     }
 }
+
+/// An iterator over a set of fields.
+pub trait FieldIter<'a>: Iterator<Item = Field<'a>> + Clone {}
+impl<'a, T> FieldIter<'a> for T where T: Iterator<Item = Field<'a>> + Clone {}

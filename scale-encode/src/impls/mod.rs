@@ -26,7 +26,7 @@ pub use composite::Composite;
 pub use variant::Variant;
 
 use crate::error::{Error, ErrorKind, Kind};
-use crate::{EncodeAsFields, EncodeAsType, Field};
+use crate::{EncodeAsFields, EncodeAsType, FieldIter};
 use codec::{Compact, Encode};
 use core::num::{
     NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroU128, NonZeroU16,
@@ -399,7 +399,7 @@ impl<K: AsRef<str>, V: EncodeAsType> EncodeAsType for BTreeMap<K, V> {
     }
 }
 impl<K: AsRef<str>, V: EncodeAsType> EncodeAsFields for BTreeMap<K, V> {
-    fn encode_as_fields_to<'a, I: Iterator<Item = Field<'a>> + Clone>(
+    fn encode_as_fields_to<'a, I: FieldIter<'a>>(
         &self,
         fields: I,
         types: &PortableRegistry,
@@ -525,7 +525,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::EncodeAsFields;
+    use crate::{EncodeAsFields, Field};
     use codec::Decode;
     use scale_info::TypeInfo;
     use std::fmt::Debug;
