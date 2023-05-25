@@ -190,10 +190,10 @@ fn generate_struct_impl(
             }
         }
         impl #impl_generics #path_to_scale_encode::EncodeAsFields for #path_to_type #ty_generics #where_clause {
-            fn encode_as_fields_to(
+            fn encode_as_fields_to<'__encode_as_field_lt, I: std::iter::Iterator<Item=#path_to_scale_encode::Field<'__encode_as_field_lt>> + Clone>(
                 &self,
                 // long variable names to prevent conflict with struct field names:
-                __encode_as_type_fields: &[#path_to_scale_encode::PortableField],
+                __encode_as_type_fields: I,
                 __encode_as_type_types: &#path_to_scale_encode::PortableRegistry,
                 __encode_as_type_out: &mut Vec<u8>
             ) -> Result<(), #path_to_scale_encode::Error> {

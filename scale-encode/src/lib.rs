@@ -21,9 +21,9 @@ exposes two traits:
 - An [`EncodeAsType`] trait which when implemented on some type, describes how it can be SCALE encoded
   with the help of a type ID and type registry describing the expected shape of the encoded bytes.
 - An [`EncodeAsFields`] trait which when implemented on some type, describes how it can be SCALE encoded
-  with the help of a slice of [`PortableField`]'s or [`PortableFieldId`]'s and type registry describing the
-  expected shape of the encoded bytes. This is generally only implemented for tuples and structs, since we
-  need a set of fields to map to the provided slices.
+  with the help of an iterator over [`Field`]s and a type registry describing the expected shape of the
+  encoded bytes. This is generally only implemented for tuples and structs, since we need a set of fields
+  to map to the provided iterator.
 
 Implementations for many built-in types are also provided for each trait, and the [`macro@EncodeAsType`]
 macro makes it easy to generate implementations for new structs and enums.
@@ -141,6 +141,8 @@ assert_encodes_to(
 
 mod impls;
 
+use std::borrow::Cow;
+
 pub mod error;
 
 pub use error::Error;
@@ -149,10 +151,10 @@ pub use error::Error;
 pub use crate::impls::{Composite, Variant};
 pub use scale_info::PortableRegistry;
 
-/// A description of a single field in a tuple or struct type. This is just a shorthand for a [`scale_info::Field`].
-pub type PortableField = scale_info::Field<scale_info::form::PortableForm>;
-/// A type ID used to represent tuple fields. This is a shorthand for a [`scale_info::interner::UntrackedSymbol`].
-pub type PortableFieldId = scale_info::interner::UntrackedSymbol<std::any::TypeId>;
+// /// A description of a single field in a tuple or struct type. This is just a shorthand for a [`scale_info::Field`].
+// pub type PortableField = scale_info::Field<scale_info::form::PortableForm>;
+// /// A type ID used to represent tuple fields. This is a shorthand for a [`scale_info::interner::UntrackedSymbol`].
+// pub type PortableFieldId = scale_info::interner::UntrackedSymbol<std::any::TypeId>;
 
 #[cfg(feature = "derive")]
 pub use scale_encode_derive::EncodeAsType;
@@ -183,50 +185,57 @@ pub trait EncodeAsType {
 /// tuple and struct types, and is automatically implemented via the [`macro@EncodeAsType`] macro.
 pub trait EncodeAsFields {
     /// Given some fields describing the shape of a type, attempt to encode to that shape.
-    fn encode_as_fields_to(
+    fn encode_as_fields_to<'a, I: Iterator<Item = Field<'a>> + Clone>(
         &self,
-        fields: &[PortableField],
+        fields: I,
         types: &PortableRegistry,
         out: &mut Vec<u8>,
     ) -> Result<(), Error>;
 
     /// This is a helper function which internally calls [`EncodeAsFields::encode_as_fields_to`]. Prefer to
     /// implement that instead.
-    fn encode_as_fields(
+    fn encode_as_fields<'a, I: Iterator<Item = Field<'a>> + Clone>(
         &self,
-        fields: &[PortableField],
+        fields: I,
         types: &PortableRegistry,
     ) -> Result<Vec<u8>, Error> {
         let mut out = Vec::new();
         self.encode_as_fields_to(fields, types, &mut out)?;
         Ok(out)
     }
+}
 
-    /// Given some field IDs describing the shape of a type, attempt to encode to that shape.
-    fn encode_as_field_ids_to(
-        &self,
-        field_ids: &[PortableFieldId],
-        types: &PortableRegistry,
-        out: &mut Vec<u8>,
-    ) -> Result<(), Error> {
-        // [TODO jsdw]: It would be good to use a more efficient data structure
-        // here to avoid allocating with smaller numbers of fields.
-        let fields: Vec<PortableField> = field_ids
-            .iter()
-            .map(|f| PortableField::new(None, *f, None, Vec::new()))
-            .collect();
-        self.encode_as_fields_to(&fields, types, out)
+/// A representation of a single field to be encoded via [`EncodeAsFields::encode_as_fields_to`].
+pub struct Field<'a> {
+    name: Option<Cow<'a, str>>,
+    id: u32,
+}
+
+impl<'a> Field<'a> {
+    /// Construct a new field with an ID and optional name.
+    pub fn new(id: u32, name: Option<impl Into<Cow<'a, str>>>) -> Self {
+        Field {
+            id,
+            name: name.map(Into::into),
+        }
     }
-
-    /// This is a helper function which internally calls [`EncodeAsFields::encode_as_field_ids_to`]. Prefer to
-    /// implement that instead.
-    fn encode_as_field_ids(
-        &self,
-        field_ids: &[PortableFieldId],
-        types: &PortableRegistry,
-    ) -> Result<Vec<u8>, Error> {
-        let mut out = Vec::new();
-        self.encode_as_field_ids_to(field_ids, types, &mut out)?;
-        Ok(out)
+    /// Create a new unnamed field.
+    pub fn unnamed(id: u32) -> Self {
+        Field { name: None, id }
+    }
+    /// Create a new named field.
+    pub fn named(id: u32, name: impl Into<Cow<'a, str>>) -> Self {
+        Field {
+            name: Some(name.into()),
+            id,
+        }
+    }
+    /// The field name, if any.
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+    /// The field ID.
+    pub fn id(&self) -> u32 {
+        self.id
     }
 }

@@ -15,7 +15,7 @@
 
 use crate::{
     error::{Error, ErrorKind, Kind, Location},
-    EncodeAsFields, EncodeAsType,
+    EncodeAsFields, EncodeAsType, Field,
 };
 use scale_info::{PortableRegistry, TypeDef};
 use std::collections::HashMap;
@@ -79,8 +79,8 @@ where
                         .encode_as_type_to(type_id, types, out);
                 }
 
-                let fields = tuple.fields();
-                self.encode_as_field_ids_to(fields, types, out)
+                let fields = tuple.fields().iter().map(|f| Field::unnamed(f.id()));
+                self.encode_as_fields_to(fields, types, out)
             }
             // If we see a composite type, it has either named fields or !=1 unnamed fields.
             TypeDef::Composite(composite) => {
@@ -98,7 +98,10 @@ where
                         .encode_as_type_to(type_id, types, out);
                 }
 
-                let fields = composite.fields();
+                let fields = composite
+                    .fields()
+                    .iter()
+                    .map(|f| Field::new(f.ty().id(), f.name()));
                 self.encode_as_fields_to(fields, types, out)
             }
             // We may have skipped through to some primitive or other type.
@@ -129,9 +132,9 @@ impl<'a, Vals> EncodeAsFields for Composite<Vals>
 where
     Vals: ExactSizeIterator<Item = (Option<&'a str>, &'a dyn EncodeAsType)> + Clone,
 {
-    fn encode_as_fields_to(
+    fn encode_as_fields_to<'b, I: Iterator<Item = Field<'b>> + Clone>(
         &self,
-        fields: &[crate::PortableField],
+        fields: I,
         types: &PortableRegistry,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
@@ -140,7 +143,7 @@ where
         // Both the target and source type have to have named fields for us to use
         // names to line them up.
         let is_named = {
-            let is_target_named = fields.iter().any(|f| f.name().is_some());
+            let is_target_named = fields.clone().any(|f| f.name().is_some());
             let is_source_named = vals_iter.clone().any(|(name, _)| name.is_some());
             is_target_named && is_source_named
         };
@@ -156,35 +159,37 @@ where
 
             for field in fields {
                 // Find the field in our source type:
-                let name = field.name().map(|n| &**n).unwrap_or("");
+                let name = field.name().unwrap_or("");
                 let Some(value) = source_fields_by_name.get(name) else {
                     return Err(Error::new(ErrorKind::CannotFindField { name: name.to_string() }))
                 };
 
                 // Encode the value to the output:
                 value
-                    .encode_as_type_to(field.ty().id(), types, out)
+                    .encode_as_type_to(field.id(), types, out)
                     .map_err(|e| e.at_field(name.to_string()))?;
             }
 
             Ok(())
         } else {
+            let fields_len = fields.clone().count();
+
             // target fields aren't named, so encode by order only. We need the field length
             // to line up for this to work.
-            if fields.len() != vals_iter.len() {
+            if fields_len != vals_iter.len() {
                 return Err(Error::new(ErrorKind::WrongLength {
                     actual_len: vals_iter.len(),
-                    expected_len: fields.len(),
+                    expected_len: fields_len,
                 }));
             }
 
-            for (idx, (field, (name, val))) in fields.iter().zip(vals_iter).enumerate() {
+            for (idx, (field, (name, val))) in fields.zip(vals_iter).enumerate() {
                 let loc = if let Some(name) = name {
                     Location::field(name.to_string())
                 } else {
                     Location::idx(idx)
                 };
-                val.encode_as_type_to(field.ty().id(), types, out)
+                val.encode_as_type_to(field.id(), types, out)
                     .map_err(|e| e.at(loc))?;
             }
             Ok(())

@@ -15,7 +15,7 @@
 
 use crate::{
     error::{Error, ErrorKind, Kind},
-    EncodeAsFields, EncodeAsType,
+    EncodeAsFields, EncodeAsType, Field,
 };
 use codec::Encode;
 use scale_info::{PortableRegistry, TypeDef};
@@ -81,7 +81,8 @@ where
                     return Err(Error::new(ErrorKind::CannotFindVariant { name: self.name.to_string(), expected: type_id }));
                 };
                 v.index().encode_to(out);
-                self.fields.encode_as_fields_to(v.fields(), types, out)
+                let fields = v.fields().iter().map(|f| Field::new(f.ty().id(), f.name()));
+                self.fields.encode_as_fields_to(fields, types, out)
             }
             _ => Err(Error::new(ErrorKind::WrongShape {
                 actual: Kind::Str,

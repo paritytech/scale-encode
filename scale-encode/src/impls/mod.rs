@@ -26,7 +26,7 @@ pub use composite::Composite;
 pub use variant::Variant;
 
 use crate::error::{Error, ErrorKind, Kind};
-use crate::{EncodeAsFields, EncodeAsType, PortableField};
+use crate::{EncodeAsFields, EncodeAsType, Field};
 use codec::{Compact, Encode};
 use core::num::{
     NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroU128, NonZeroU16,
@@ -399,9 +399,9 @@ impl<K: AsRef<str>, V: EncodeAsType> EncodeAsType for BTreeMap<K, V> {
     }
 }
 impl<K: AsRef<str>, V: EncodeAsType> EncodeAsFields for BTreeMap<K, V> {
-    fn encode_as_fields_to(
+    fn encode_as_fields_to<'a, I: Iterator<Item = Field<'a>> + Clone>(
         &self,
-        fields: &[PortableField],
+        fields: I,
         types: &PortableRegistry,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
@@ -588,9 +588,13 @@ mod test {
 
         let encoded_as_fields = match type_def {
             scale_info::TypeDef::Composite(c) => {
-                value.encode_as_fields(c.fields(), &types).unwrap()
+                let fields = c.fields().iter().map(|f| Field::new(f.ty().id(), f.name()));
+                value.encode_as_fields(fields, &types).unwrap()
             }
-            scale_info::TypeDef::Tuple(t) => value.encode_as_field_ids(t.fields(), &types).unwrap(),
+            scale_info::TypeDef::Tuple(t) => {
+                let fields = t.fields().iter().map(|f| Field::unnamed(f.id()));
+                value.encode_as_fields(fields, &types).unwrap()
+            }
             _ => {
                 panic!("Expected composite or tuple type def");
             }
