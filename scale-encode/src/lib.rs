@@ -151,11 +151,6 @@ pub use error::Error;
 pub use crate::impls::{Composite, Variant};
 pub use scale_info::PortableRegistry;
 
-// /// A description of a single field in a tuple or struct type. This is just a shorthand for a [`scale_info::Field`].
-// pub type PortableField = scale_info::Field<scale_info::form::PortableForm>;
-// /// A type ID used to represent tuple fields. This is a shorthand for a [`scale_info::interner::UntrackedSymbol`].
-// pub type PortableFieldId = scale_info::interner::UntrackedSymbol<std::any::TypeId>;
-
 #[cfg(feature = "derive")]
 pub use scale_encode_derive::EncodeAsType;
 
