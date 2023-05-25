@@ -199,7 +199,7 @@ pub trait EncodeAsFields {
 }
 
 /// A representation of a single field to be encoded via [`EncodeAsFields::encode_as_fields_to`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Field<'a> {
     name: Option<&'a str>,
     id: u32,
