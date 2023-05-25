@@ -74,17 +74,17 @@ where
             .resolve(type_id)
             .ok_or_else(|| Error::new(ErrorKind::TypeNotFound(type_id)))?;
 
-        match ty.type_def() {
+        match &ty.type_def {
             TypeDef::Variant(var) => {
-                let vars = var.variants();
+                let vars = &var.variants;
                 let Some(v) = vars.iter().find(|v| v.name == self.name) else {
                     return Err(Error::new(ErrorKind::CannotFindVariant { name: self.name.to_string(), expected: type_id }));
                 };
-                v.index().encode_to(out);
+                v.index.encode_to(out);
                 let fields = v
-                    .fields()
+                    .fields
                     .iter()
-                    .map(|f| Field::new(f.ty().id(), f.name().map(|n| &**n)));
+                    .map(|f| Field::new(f.ty.id, f.name.as_deref()));
                 self.fields.encode_as_fields_to(fields, types, out)
             }
             _ => Err(Error::new(ErrorKind::WrongShape {

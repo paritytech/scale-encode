@@ -31,7 +31,7 @@ impl EncodeAsType for scale_bits::Bits {
             .resolve(type_id)
             .ok_or_else(|| Error::new(ErrorKind::TypeNotFound(type_id)))?;
 
-        if let TypeDef::BitSequence(ty) = ty.type_def() {
+        if let TypeDef::BitSequence(ty) = &ty.type_def {
             let Ok(format) = scale_bits::Format::from_metadata(ty, types) else {
                 return Err(wrong_shape(type_id))
             };

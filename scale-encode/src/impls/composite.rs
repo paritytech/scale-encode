@@ -66,7 +66,7 @@ where
             .resolve(type_id)
             .ok_or_else(|| Error::new(ErrorKind::TypeNotFound(type_id)))?;
 
-        match ty.type_def() {
+        match &ty.type_def {
             // If we see a tuple type, it'll have more than one field else it'd have been skipped above.
             TypeDef::Tuple(tuple) => {
                 // If there is exactly one val, it won't line up with the tuple then, so
@@ -79,7 +79,7 @@ where
                         .encode_as_type_to(type_id, types, out);
                 }
 
-                let fields = tuple.fields().iter().map(|f| Field::unnamed(f.id()));
+                let fields = tuple.fields.iter().map(|f| Field::unnamed(f.id));
                 self.encode_as_fields_to(fields, types, out)
             }
             // If we see a composite type, it has either named fields or !=1 unnamed fields.
@@ -99,9 +99,9 @@ where
                 }
 
                 let fields = composite
-                    .fields()
+                    .fields
                     .iter()
-                    .map(|f| Field::new(f.ty().id(), f.name().map(|n| &**n)));
+                    .map(|f| Field::new(f.ty.id, f.name.as_deref()));
                 self.encode_as_fields_to(fields, types, out)
             }
             // We may have skipped through to some primitive or other type.
@@ -203,14 +203,14 @@ fn skip_through_single_unnamed_fields(type_id: u32, types: &PortableRegistry) ->
     let Some(ty) = types.resolve(type_id) else {
         return type_id
     };
-    match ty.type_def() {
-        TypeDef::Tuple(tuple) if tuple.fields().len() == 1 => {
-            skip_through_single_unnamed_fields(tuple.fields()[0].id(), types)
+    match &ty.type_def {
+        TypeDef::Tuple(tuple) if tuple.fields.len() == 1 => {
+            skip_through_single_unnamed_fields(tuple.fields[0].id, types)
         }
         TypeDef::Composite(composite)
-            if composite.fields().len() == 1 && composite.fields()[0].name().is_none() =>
+            if composite.fields.len() == 1 && composite.fields[0].name.is_none() =>
         {
-            skip_through_single_unnamed_fields(composite.fields()[0].ty().id(), types)
+            skip_through_single_unnamed_fields(composite.fields[0].ty.id, types)
         }
         _ => type_id,
     }

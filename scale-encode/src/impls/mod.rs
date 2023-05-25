@@ -52,7 +52,7 @@ impl EncodeAsType for bool {
             .resolve(type_id)
             .ok_or_else(|| Error::new(ErrorKind::TypeNotFound(type_id)))?;
 
-        if let TypeDef::Primitive(TypeDefPrimitive::Bool) = ty.type_def() {
+        if let TypeDef::Primitive(TypeDefPrimitive::Bool) = &ty.type_def {
             self.encode_to(out);
             Ok(())
         } else {
@@ -76,7 +76,7 @@ impl EncodeAsType for str {
             .resolve(type_id)
             .ok_or_else(|| Error::new(ErrorKind::TypeNotFound(type_id)))?;
 
-        if let TypeDef::Primitive(TypeDefPrimitive::Str) = ty.type_def() {
+        if let TypeDef::Primitive(TypeDefPrimitive::Str) = &ty.type_def {
             self.encode_to(out);
             Ok(())
         } else {
@@ -227,7 +227,7 @@ macro_rules! impl_encode_number {
                     Ok(())
                 }
 
-                match ty.type_def() {
+                match &ty.type_def {
                     TypeDef::Primitive(TypeDefPrimitive::U8) => try_num::<u8>(*self, type_id, out),
                     TypeDef::Primitive(TypeDefPrimitive::U16) => {
                         try_num::<u16>(*self, type_id, out)
@@ -255,7 +255,7 @@ macro_rules! impl_encode_number {
                         try_num::<i128>(*self, type_id, out)
                     }
                     TypeDef::Compact(c) => {
-                        let type_id = find_single_entry_with_same_repr(c.type_param().id(), types);
+                        let type_id = find_single_entry_with_same_repr(c.type_param.id, types);
 
                         let ty = types
                             .resolve(type_id)
@@ -274,7 +274,7 @@ macro_rules! impl_encode_number {
                             }};
                         }
 
-                        match ty.type_def() {
+                        match ty.type_def {
                             TypeDef::Primitive(TypeDefPrimitive::U8) => {
                                 try_compact_num!(*self, NumericKind::U8, out, u8)
                             }
@@ -387,7 +387,7 @@ impl<K: AsRef<str>, V: EncodeAsType> EncodeAsType for BTreeMap<K, V> {
             .resolve(type_id)
             .ok_or_else(|| Error::new(ErrorKind::TypeNotFound(type_id)))?;
 
-        if matches!(ty.type_def(), TypeDef::Array(_) | TypeDef::Sequence(_)) {
+        if matches!(ty.type_def, TypeDef::Array(_) | TypeDef::Sequence(_)) {
             encode_iterable_sequence_to(self.len(), self.values(), type_id, types, out)
         } else {
             Composite(
@@ -455,12 +455,12 @@ fn find_single_entry_with_same_repr(type_id: u32, types: &PortableRegistry) -> u
     let Some(ty) = types.resolve(type_id) else {
         return type_id
     };
-    match ty.type_def() {
-        TypeDef::Tuple(tuple) if tuple.fields().len() == 1 => {
-            find_single_entry_with_same_repr(tuple.fields()[0].id(), types)
+    match &ty.type_def {
+        TypeDef::Tuple(tuple) if tuple.fields.len() == 1 => {
+            find_single_entry_with_same_repr(tuple.fields[0].id, types)
         }
-        TypeDef::Composite(composite) if composite.fields().len() == 1 => {
-            find_single_entry_with_same_repr(composite.fields()[0].ty().id(), types)
+        TypeDef::Composite(composite) if composite.fields.len() == 1 => {
+            find_single_entry_with_same_repr(composite.fields[0].ty.id, types)
         }
         _ => type_id,
     }
@@ -482,18 +482,18 @@ where
         .resolve(type_id)
         .ok_or_else(|| Error::new(ErrorKind::TypeNotFound(type_id)))?;
 
-    match ty.type_def() {
+    match &ty.type_def {
         TypeDef::Array(arr) => {
-            if arr.len() == len as u32 {
+            if arr.len == len as u32 {
                 for (idx, item) in it.enumerate() {
-                    item.encode_as_type_to(arr.type_param().id(), types, out)
+                    item.encode_as_type_to(arr.type_param.id, types, out)
                         .map_err(|e| e.at_idx(idx))?;
                 }
                 Ok(())
             } else {
                 Err(Error::new(ErrorKind::WrongLength {
                     actual_len: len,
-                    expected_len: arr.len() as usize,
+                    expected_len: arr.len as usize,
                 }))
             }
         }
@@ -501,7 +501,7 @@ where
             // Sequences are prefixed with their compact encoded length:
             Compact(len as u32).encode_to(out);
             for (idx, item) in it.enumerate() {
-                item.encode_as_type_to(seq.type_param().id(), types, out)
+                item.encode_as_type_to(seq.type_param.id, types, out)
                     .map_err(|e| e.at_idx(idx))?;
             }
             Ok(())
@@ -509,11 +509,11 @@ where
         // if the target type is a basic newtype wrapper, then dig into that and try encoding to
         // the thing inside it. This is fairly common, and allowing this means that users don't have
         // to wrap things needlessly just to make types line up.
-        TypeDef::Tuple(tup) if tup.fields().len() == 1 => {
-            encode_iterable_sequence_to(len, it, tup.fields()[0].id(), types, out)
+        TypeDef::Tuple(tup) if tup.fields.len() == 1 => {
+            encode_iterable_sequence_to(len, it, tup.fields[0].id, types, out)
         }
-        TypeDef::Composite(com) if com.fields().len() == 1 => {
-            encode_iterable_sequence_to(len, it, com.fields()[0].ty().id(), types, out)
+        TypeDef::Composite(com) if com.fields.len() == 1 => {
+            encode_iterable_sequence_to(len, it, com.fields[0].ty.id, types, out)
         }
         _ => Err(Error::new(ErrorKind::WrongShape {
             actual: Kind::Array,
@@ -537,7 +537,7 @@ mod test {
         let id = types.register_type(&m);
         let portable_registry: PortableRegistry = types.into();
 
-        (id.id(), portable_registry)
+        (id.id, portable_registry)
     }
 
     fn encode_type<V: EncodeAsType, T: TypeInfo + 'static>(value: V) -> Result<Vec<u8>, Error> {
@@ -584,18 +584,18 @@ mod test {
         let encoded_other = other.encode();
 
         let (type_id, types) = make_type::<T>();
-        let type_def = types.resolve(type_id).unwrap().type_def();
+        let type_def = &types.resolve(type_id).unwrap().type_def;
 
         let encoded_as_fields = match type_def {
             scale_info::TypeDef::Composite(c) => {
                 let fields = c
-                    .fields()
+                    .fields
                     .iter()
-                    .map(|f| Field::new(f.ty().id(), f.name().map(|n| &**n)));
+                    .map(|f| Field::new(f.ty.id, f.name.as_deref()));
                 value.encode_as_fields(fields, &types).unwrap()
             }
             scale_info::TypeDef::Tuple(t) => {
-                let fields = t.fields().iter().map(|f| Field::unnamed(f.id()));
+                let fields = t.fields.iter().map(|f| Field::unnamed(f.id));
                 value.encode_as_fields(fields, &types).unwrap()
             }
             _ => {
