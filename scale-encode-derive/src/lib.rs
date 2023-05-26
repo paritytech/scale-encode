@@ -19,73 +19,7 @@ use syn::{parse_macro_input, punctuated::Punctuated, DeriveInput};
 
 const ATTR_NAME: &str = "encode_as_type";
 
-/// The `EncodeAsType` derive macro can be used to implement `EncodeAsType`
-/// on structs and enums whose fields all implement `EncodeAsType`.
-///
-/// # Examples
-///
-/// This can be applied to structs and enums:
-///
-/// ```rust
-/// use scale_encode::EncodeAsType;
-///
-/// #[derive(EncodeAsType)]
-/// struct Foo(String);
-///
-/// #[derive(EncodeAsType)]
-/// struct Bar {
-///     a: u64,
-///     b: bool
-/// }
-///
-/// #[derive(EncodeAsType)]
-/// enum Wibble<T> {
-///     A(usize, bool, T),
-///     B { value: String },
-///     C
-/// }
-/// ```
-///
-/// If you aren't directly depending on `scale_encode`, you must tell the macro what the path
-/// to it is so that it knows how to generate the relevant impls:
-///
-/// ```rust
-/// # use scale_encode as alt_path;
-/// use alt_path::EncodeAsType;
-///
-/// #[derive(EncodeAsType)]
-/// #[encode_as_type(crate_path = "alt_path")]
-/// struct Foo<T> {
-///    a: u64,
-///    b: T
-/// }
-/// ```
-///
-/// If you use generics, the macro will assume that each of them also implements `EncodeAsType`.
-/// This can be overridden when it's not the case (the compiler will ensure that you can't go wrong here):
-///
-/// ```rust
-/// use scale_encode::EncodeAsType;
-///
-/// #[derive(EncodeAsType)]
-/// #[encode_as_type(trait_bounds = "")]
-/// struct Foo<T> {
-///    a: u64,
-///    b: bool,
-///    c: std::marker::PhantomData<T>
-/// }
-/// ```
-///
-/// # Attributes
-///
-/// - `#[encode_as_type(crate_path = "::path::to::scale_encode")]`:
-///   By default, the macro expects `scale_encode` to be a top level dependency,
-///   available as `::scale_encode`. If this is not the case, you can provide the
-///   crate path here.
-/// - `#[encode_as_type(trait_bounds = "T: Foo, U::Input: EncodeAsType")]`:
-///   By default, for each generate type parameter, the macro will add trait bounds such
-///   that these type parameters must implement `EncodeAsType` too. You can override this
-///   behaviour and provide your own trait bounds instead using this option.
+// Documentation in the main crate; don't add anything here.
 #[proc_macro_derive(EncodeAsType, attributes(encode_as_type))]
 pub fn derive_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
