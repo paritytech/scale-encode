@@ -5,7 +5,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -13,3 +13,7 @@ repository = "https://github.com/paritytech/scale-encode"
 homepage = "https://www.parity.io/"
 keywords = ["parity", "scale", "encoding"]
 include = ["Cargo.toml", "src/**/*.rs", "README.md", "LICENSE"]
+
+[workspace.dependencies]
+scale-encode = { version = "0.2.0", path = "scale-encode" }
+scale-encode-derive = { version = "0.2.0", path = "scale-encode-derive" }

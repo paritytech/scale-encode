@@ -24,4 +24,4 @@ proc-macro-crate = "1"
 darling = "0.14.2"
 
 [dev-dependencies]
-scale-encode = { path = "../scale-encode" }
+scale-encode = { workspace = true }

@@ -30,13 +30,13 @@ scale-info = { version = "2.7.0", features = ["bit-vec"] }
 thiserror = "1.0.37"
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive", "full"] }
 scale-bits = { version = "0.3.0", default-features = false, features = ["scale-info"], optional = true }
-scale-encode-derive = { path = "../scale-encode-derive", version = "0.1.2", optional = true }
+scale-encode-derive = { workspace = true, optional = true }
 primitive-types = { version = "0.12.0", optional = true, default-features = false }
 
 [dev-dependencies]
 bitvec = "1.0.1"
 scale-info = { version = "2.3.0", features = ["bit-vec", "derive"] }
-scale-encode-derive = { path = "../scale-encode-derive" }
+scale-encode-derive = { workspace = true }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive", "full", "bit-vec"] }
 trybuild = "1.0.72"
 # enable scale-info feature for testing:
