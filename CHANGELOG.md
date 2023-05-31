@@ -4,6 +4,10 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## [v0.3.0] - 2023-05-31
+
+- Remove the generic iterator from `EncodeAsFields` and ensure that it's object safe. Use a `&mut dyn` iterator instead.
+
 ## [v0.2.0] - 2023-05-26
 
 - Update `scale-info` to latest, removing deprecated method calls.

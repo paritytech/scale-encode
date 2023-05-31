@@ -234,3 +234,15 @@ impl<'a> Field<'a> {
 /// An iterator over a set of fields.
 pub trait FieldIter<'a>: Iterator<Item = Field<'a>> {}
 impl<'a, T> FieldIter<'a> for T where T: Iterator<Item = Field<'a>> {}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    // Confirm object safety of EncodeAsFields; we want this.
+    // (doesn't really need to run; compile time only.)
+    #[test]
+    fn is_object_safe() {
+        fn _foo(_input: Box<dyn EncodeAsFields>) {}
+    }
+}
