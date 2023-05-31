@@ -187,15 +187,14 @@ where
             }
 
             for (idx, (field, (name, val))) in fields.iter().zip(vals_iter).enumerate() {
-                val.encode_as_type_to(field.id(), types, out)
-                    .map_err(|e| {
-                        let loc = if let Some(name) = name {
-                            Location::field(name.to_string())
-                        } else {
-                            Location::idx(idx)
-                        };
-                        e.at(loc)
-                    })?;
+                val.encode_as_type_to(field.id(), types, out).map_err(|e| {
+                    let loc = if let Some(name) = name {
+                        Location::field(name.to_string())
+                    } else {
+                        Location::idx(idx)
+                    };
+                    e.at(loc)
+                })?;
             }
             Ok(())
         }
