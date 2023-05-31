@@ -42,4 +42,3 @@ codec = { package = "parity-scale-codec", version = "3.0.0", default-features = 
 trybuild = "1.0.72"
 # enable scale-info feature for testing:
 primitive-types = { version = "0.12.0", default-features = false, features = ["scale-info"] }
-
