@@ -522,6 +522,7 @@ where
     }
 }
 
+#[cfg(all(feature = "derive", feature = "bits", feature = "primitive-types"))]
 #[cfg(test)]
 mod test {
     use super::*;
