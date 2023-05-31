@@ -399,9 +399,9 @@ impl<K: AsRef<str>, V: EncodeAsType> EncodeAsType for BTreeMap<K, V> {
     }
 }
 impl<K: AsRef<str>, V: EncodeAsType> EncodeAsFields for BTreeMap<K, V> {
-    fn encode_as_fields_to<'a, I: FieldIter<'a>>(
+    fn encode_as_fields_to(
         &self,
-        fields: I,
+        fields: &mut dyn FieldIter<'_>,
         types: &PortableRegistry,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
@@ -588,15 +588,15 @@ mod test {
 
         let encoded_as_fields = match type_def {
             scale_info::TypeDef::Composite(c) => {
-                let fields = c
+                let mut fields = c
                     .fields
                     .iter()
                     .map(|f| Field::new(f.ty.id, f.name.as_deref()));
-                value.encode_as_fields(fields, &types).unwrap()
+                value.encode_as_fields(&mut fields, &types).unwrap()
             }
             scale_info::TypeDef::Tuple(t) => {
-                let fields = t.fields.iter().map(|f| Field::unnamed(f.id));
-                value.encode_as_fields(fields, &types).unwrap()
+                let mut fields = t.fields.iter().map(|f| Field::unnamed(f.id));
+                value.encode_as_fields(&mut fields, &types).unwrap()
             }
             _ => {
                 panic!("Expected composite or tuple type def");

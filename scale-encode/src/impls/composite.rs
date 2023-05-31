@@ -79,8 +79,8 @@ where
                         .encode_as_type_to(type_id, types, out);
                 }
 
-                let fields = tuple.fields.iter().map(|f| Field::unnamed(f.id));
-                self.encode_as_fields_to(fields, types, out)
+                let mut fields = tuple.fields.iter().map(|f| Field::unnamed(f.id));
+                self.encode_as_fields_to(&mut fields, types, out)
             }
             // If we see a composite type, it has either named fields or !=1 unnamed fields.
             TypeDef::Composite(composite) => {
@@ -98,11 +98,11 @@ where
                         .encode_as_type_to(type_id, types, out);
                 }
 
-                let fields = composite
+                let mut fields = composite
                     .fields
                     .iter()
                     .map(|f| Field::new(f.ty.id, f.name.as_deref()));
-                self.encode_as_fields_to(fields, types, out)
+                self.encode_as_fields_to(&mut fields, types, out)
             }
             // We may have skipped through to some primitive or other type.
             _ => {
@@ -132,18 +132,21 @@ impl<'a, Vals> EncodeAsFields for Composite<Vals>
 where
     Vals: ExactSizeIterator<Item = (Option<&'a str>, &'a dyn EncodeAsType)> + Clone,
 {
-    fn encode_as_fields_to<'b, I: FieldIter<'b>>(
+    fn encode_as_fields_to(
         &self,
-        fields: I,
+        fields: &mut dyn FieldIter<'_>,
         types: &PortableRegistry,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
         let vals_iter = self.0.clone();
 
+        // Most of the time there aren't too many fields, so avoid allocation in most cases:
+        let fields = smallvec::SmallVec::<[_; 16]>::from_iter(fields);
+
         // Both the target and source type have to have named fields for us to use
         // names to line them up.
         let is_named = {
-            let is_target_named = fields.clone().any(|f| f.name().is_some());
+            let is_target_named = fields.iter().any(|f| f.name().is_some());
             let is_source_named = vals_iter.clone().any(|(name, _)| name.is_some());
             is_target_named && is_source_named
         };
@@ -172,7 +175,7 @@ where
 
             Ok(())
         } else {
-            let fields_len = fields.clone().count();
+            let fields_len = fields.len();
 
             // target fields aren't named, so encode by order only. We need the field length
             // to line up for this to work.
@@ -183,14 +186,16 @@ where
                 }));
             }
 
-            for (idx, (field, (name, val))) in fields.zip(vals_iter).enumerate() {
-                let loc = if let Some(name) = name {
-                    Location::field(name.to_string())
-                } else {
-                    Location::idx(idx)
-                };
+            for (idx, (field, (name, val))) in fields.iter().zip(vals_iter).enumerate() {
                 val.encode_as_type_to(field.id(), types, out)
-                    .map_err(|e| e.at(loc))?;
+                    .map_err(|e| {
+                        let loc = if let Some(name) = name {
+                            Location::field(name.to_string())
+                        } else {
+                            Location::idx(idx)
+                        };
+                        e.at(loc)
+                    })?;
             }
             Ok(())
         }

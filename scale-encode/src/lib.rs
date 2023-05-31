@@ -38,7 +38,7 @@ use codec::Encode;
 use scale_encode::EncodeAsType;
 use scale_info::{PortableRegistry, TypeInfo};
 
-// We are comonly provided type information, but for our examples we construct type info from
+// We are commonly provided type information, but for our examples we construct type info from
 // any type that implements `TypeInfo`.
 fn get_type_info<T: TypeInfo + 'static>() -> (u32, PortableRegistry) {
     let m = scale_info::MetaType::new::<T>();
@@ -178,18 +178,18 @@ pub trait EncodeAsType {
 /// tuple and struct types, and is automatically implemented via the [`macro@EncodeAsType`] macro.
 pub trait EncodeAsFields {
     /// Given some fields describing the shape of a type, attempt to encode to that shape.
-    fn encode_as_fields_to<'a, I: FieldIter<'a>>(
+    fn encode_as_fields_to(
         &self,
-        fields: I,
+        fields: &mut dyn FieldIter<'_>,
         types: &PortableRegistry,
         out: &mut Vec<u8>,
     ) -> Result<(), Error>;
 
     /// This is a helper function which internally calls [`EncodeAsFields::encode_as_fields_to`]. Prefer to
     /// implement that instead.
-    fn encode_as_fields<'a, I: FieldIter<'a>>(
+    fn encode_as_fields(
         &self,
-        fields: I,
+        fields: &mut dyn FieldIter<'_>,
         types: &PortableRegistry,
     ) -> Result<Vec<u8>, Error> {
         let mut out = Vec::new();
@@ -232,5 +232,5 @@ impl<'a> Field<'a> {
 }
 
 /// An iterator over a set of fields.
-pub trait FieldIter<'a>: Iterator<Item = Field<'a>> + Clone {}
-impl<'a, T> FieldIter<'a> for T where T: Iterator<Item = Field<'a>> + Clone {}
+pub trait FieldIter<'a>: Iterator<Item = Field<'a>> {}
+impl<'a, T> FieldIter<'a> for T where T: Iterator<Item = Field<'a>> {}

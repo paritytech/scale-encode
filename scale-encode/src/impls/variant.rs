@@ -81,11 +81,11 @@ where
                     return Err(Error::new(ErrorKind::CannotFindVariant { name: self.name.to_string(), expected: type_id }));
                 };
                 v.index.encode_to(out);
-                let fields = v
+                let mut fields = v
                     .fields
                     .iter()
                     .map(|f| Field::new(f.ty.id, f.name.as_deref()));
-                self.fields.encode_as_fields_to(fields, types, out)
+                self.fields.encode_as_fields_to(&mut fields, types, out)
             }
             _ => Err(Error::new(ErrorKind::WrongShape {
                 actual: Kind::Str,
