@@ -25,20 +25,30 @@ mod variant;
 pub use composite::Composite;
 pub use variant::Variant;
 
-use crate::error::{Error, ErrorKind, Kind};
-use crate::{EncodeAsFields, EncodeAsType, FieldIter};
-use codec::{Compact, Encode};
-use core::num::{
-    NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroU128, NonZeroU16,
-    NonZeroU32, NonZeroU64, NonZeroU8,
+use crate::{
+    error::{Error, ErrorKind, Kind},
+    EncodeAsFields, EncodeAsType, FieldIter,
 };
-use core::ops::{Range, RangeInclusive};
+use alloc::{
+    borrow::ToOwned,
+    boxed::Box,
+    collections::{BTreeMap, BTreeSet, BinaryHeap, LinkedList, VecDeque},
+    rc::Rc,
+    string::{String, ToString},
+    sync::Arc,
+    vec::Vec,
+};
+use codec::{Compact, Encode};
+use core::{
+    marker::PhantomData,
+    num::{
+        NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroU128, NonZeroU16,
+        NonZeroU32, NonZeroU64, NonZeroU8,
+    },
+    ops::{Range, RangeInclusive},
+    time::Duration,
+};
 use scale_info::{PortableRegistry, TypeDef, TypeDefPrimitive};
-use std::collections::{BTreeMap, BTreeSet, BinaryHeap, LinkedList, VecDeque};
-use std::marker::PhantomData;
-use std::rc::Rc;
-use std::sync::Arc;
-use std::time::Duration;
 
 impl EncodeAsType for bool {
     fn encode_as_type_to(
@@ -102,7 +112,7 @@ where
     }
 }
 
-impl<'a, T> EncodeAsType for std::borrow::Cow<'a, T>
+impl<'a, T> EncodeAsType for alloc::borrow::Cow<'a, T>
 where
     T: 'a + EncodeAsType + ToOwned + ?Sized,
 {
@@ -527,9 +537,10 @@ where
 mod test {
     use super::*;
     use crate::{EncodeAsFields, Field};
+    use alloc::vec;
     use codec::Decode;
+    use core::fmt::Debug;
     use scale_info::TypeInfo;
-    use std::fmt::Debug;
 
     /// Given a type definition, return type ID and registry representing it.
     fn make_type<T: TypeInfo + 'static>() -> (u32, PortableRegistry) {
@@ -686,7 +697,7 @@ mod test {
         assert_encodes_like_codec(-1234);
         assert_encodes_like_codec(100_000_000_000_000u128);
         assert_encodes_like_codec(());
-        assert_encodes_like_codec(std::marker::PhantomData::<()>);
+        assert_encodes_like_codec(core::marker::PhantomData::<()>);
         assert_encodes_like_codec([1, 2, 3, 4, 5]);
         assert_encodes_like_codec([1u8, 2, 3, 4, 5]);
         assert_encodes_like_codec(vec![1, 2, 3, 4, 5]);
@@ -701,7 +712,7 @@ mod test {
         // These don't impl TypeInfo so we have to provide the target type to encode to & compare with:
         assert_value_roundtrips_to(Arc::new("hi"), "hi".to_string());
         assert_value_roundtrips_to(Rc::new("hi"), "hi".to_string());
-        // encodes_like_codec(std::time::Duration::from_millis(123456));
+        // encodes_like_codec(core::time::Duration::from_millis(123456));
     }
 
     #[test]

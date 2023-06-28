@@ -17,6 +17,7 @@ use crate::{
     error::{Error, ErrorKind, Kind},
     EncodeAsFields, EncodeAsType, Field,
 };
+use alloc::{string::ToString, vec::Vec};
 use codec::Encode;
 use scale_info::{PortableRegistry, TypeDef};
 

@@ -14,6 +14,7 @@
 // limitations under the License.
 
 use crate::{error::Error, EncodeAsType};
+use alloc::vec::Vec;
 use primitive_types::{H128, H160, H256, H384, H512, H768};
 
 macro_rules! impl_encode {

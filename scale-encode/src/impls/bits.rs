@@ -17,6 +17,7 @@ use crate::{
     error::{Error, ErrorKind, Kind},
     EncodeAsType,
 };
+use alloc::vec::Vec;
 use scale_info::TypeDef;
 
 impl EncodeAsType for scale_bits::Bits {

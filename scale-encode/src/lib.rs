@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
 /*!
 `parity-scale-codec` provides an `Encode` trait which allows types to SCALE encode themselves based on their shape.
 This crate builds on this, and allows types to encode themselves based on [`scale_info`] type information. It
@@ -139,15 +141,27 @@ assert_encodes_to(
 */
 #![deny(missing_docs)]
 
+extern crate alloc;
+
 mod impls;
 
 pub mod error;
+
+// This is exported for generated derive code to use, to be compatible with std or no-std as needed.
+#[doc(hidden)]
+pub use alloc::vec::Vec;
 
 pub use error::Error;
 
 // Useful types to help implement EncodeAsType/Fields with:
 pub use crate::impls::{Composite, Variant};
 pub use scale_info::PortableRegistry;
+
+/// Re-exports of external crates.
+pub mod ext {
+    #[cfg(feature = "primitive-types")]
+    pub use primitive_types;
+}
 
 /// This trait signals that some static type can possibly be SCALE encoded given some
 /// `type_id` and [`PortableRegistry`] which dictates the expected encoding.
@@ -232,18 +246,6 @@ impl<'a> Field<'a> {
 pub trait FieldIter<'a>: Iterator<Item = Field<'a>> {}
 impl<'a, T> FieldIter<'a> for T where T: Iterator<Item = Field<'a>> {}
 
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    // Confirm object safety of EncodeAsFields; we want this.
-    // (doesn't really need to run; compile time only.)
-    #[test]
-    fn is_object_safe() {
-        fn _foo(_input: Box<dyn EncodeAsFields>) {}
-    }
-}
-
 /// The `EncodeAsType` derive macro can be used to implement `EncodeAsType`
 /// on structs and enums whose fields all implement `EncodeAsType`.
 ///
@@ -313,3 +315,16 @@ mod test {
 ///   behaviour and provide your own trait bounds instead using this option.
 #[cfg(feature = "derive")]
 pub use scale_encode_derive::EncodeAsType;
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use alloc::boxed::Box;
+
+    // Confirm object safety of EncodeAsFields; we want this.
+    // (doesn't really need to run; compile time only.)
+    #[test]
+    fn is_object_safe() {
+        fn _foo(_input: Box<dyn EncodeAsFields>) {}
+    }
+}

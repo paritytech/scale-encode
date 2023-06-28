@@ -1,7 +1,8 @@
 [workspace]
 members = [
     "scale-encode",
-    "scale-encode-derive"
+    "scale-encode-derive",
+    "testing/no_std",
 ]
 
 [workspace.package]

@@ -81,7 +81,7 @@ fn generate_enum_impl(
                 // long variable names to prevent conflict with struct field names:
                 __encode_as_type_type_id: u32,
                 __encode_as_type_types: &#path_to_scale_encode::PortableRegistry,
-                __encode_as_type_out: &mut Vec<u8>
+                __encode_as_type_out: &mut #path_to_scale_encode::Vec<u8>
             ) -> Result<(), #path_to_scale_encode::Error> {
                 match self {
                     #( #match_arms, )*
@@ -113,7 +113,7 @@ fn generate_struct_impl(
                 // long variable names to prevent conflict with struct field names:
                 __encode_as_type_type_id: u32,
                 __encode_as_type_types: &#path_to_scale_encode::PortableRegistry,
-                __encode_as_type_out: &mut Vec<u8>
+                __encode_as_type_out: &mut #path_to_scale_encode::Vec<u8>
             ) -> Result<(), #path_to_scale_encode::Error> {
                 let #path_to_type #matcher = self;
                 #composite.encode_as_type_to(
@@ -129,7 +129,7 @@ fn generate_struct_impl(
                 // long variable names to prevent conflict with struct field names:
                 __encode_as_type_fields: &mut dyn #path_to_scale_encode::FieldIter<'_>,
                 __encode_as_type_types: &#path_to_scale_encode::PortableRegistry,
-                __encode_as_type_out: &mut Vec<u8>
+                __encode_as_type_out: &mut #path_to_scale_encode::Vec<u8>
             ) -> Result<(), #path_to_scale_encode::Error> {
                 let #path_to_type #matcher = self;
                 #composite.encode_as_fields_to(
@@ -193,15 +193,13 @@ fn fields_to_matcher_and_composite(
             )
         }
         syn::Fields::Unnamed(fields) => {
-            let field_idents: Vec<syn::Ident> = fields
+            let field_idents = fields
                 .unnamed
                 .iter()
                 .enumerate()
-                .map(|(idx, _)| format_ident!("_{idx}"))
-                .collect();
-            let match_body = field_idents.iter().map(|i| quote!(#i));
+                .map(|(idx, _)| format_ident!("_{idx}"));
+            let match_body = field_idents.clone().map(|i| quote!(#i));
             let tuple_body = field_idents
-                .iter()
                 .map(|i| quote!((None as Option<&'static str>, #i as &dyn #path_to_scale_encode::EncodeAsType)));
 
             (
