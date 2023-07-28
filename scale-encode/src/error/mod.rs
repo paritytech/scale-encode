@@ -194,26 +194,13 @@ pub enum Kind {
 mod test {
     use super::*;
 
-    #[derive(Debug)]
+    #[derive(Debug, derive_more::Display)]
     enum MyError {
         Foo,
     }
 
-    impl Display for MyError {
-        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            write!(f, "{self:?}")
-        }
-    }
-
     #[cfg(feature = "std")]
     impl std::error::Error for MyError {}
-
-    #[cfg(not(feature = "std"))]
-    impl Into<CustomError> for MyError {
-        fn into(self) -> CustomError {
-            Box::new(self)
-        }
-    }
 
     #[test]
     fn custom_error() {
