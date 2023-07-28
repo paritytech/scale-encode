@@ -28,6 +28,9 @@ pub struct Error {
     kind: ErrorKind,
 }
 
+#[cfg(feature = "std")]
+impl std::error::Error for Error {}
+
 impl Error {
     /// Construct a new error given an error kind.
     pub fn new(kind: ErrorKind) -> Error {
@@ -37,8 +40,17 @@ impl Error {
         }
     }
     /// Construct a new, custom error.
-    pub fn custom(error: impl Into<CustomError>) -> Error {
-        Error::new(ErrorKind::Custom(error.into()))
+    pub fn custom(error: impl CustomError) -> Error {
+        Error::new(ErrorKind::Custom(Box::new(error)))
+    }
+    /// Construct a custom error from a static string.
+    pub fn custom_str(error: &'static str) -> Error {
+        #[derive(derive_more::Display, Debug)]
+        pub struct StrError(pub &'static str);
+        #[cfg(feature = "std")]
+        impl std::error::Error for StrError {}
+
+        Error::new(ErrorKind::Custom(Box::new(StrError(error))))
     }
     /// Retrieve more information about what went wrong.
     pub fn kind(&self) -> &ErrorKind {
@@ -91,11 +103,13 @@ impl Display for Error {
 }
 
 /// The underlying nature of the error.
-#[derive(Debug)]
+#[derive(Debug, derive_more::From, derive_more::Display)]
 pub enum ErrorKind {
     /// Cannot find a given type.
+    #[display(fmt = "Cannot find type with ID {_0}")]
     TypeNotFound(u32),
     /// Cannot encode the actual type given into the target type ID.
+    #[display(fmt = "Cannot encode {actual:?} into type with ID {expected}")]
     WrongShape {
         /// The actual kind we have to encode
         actual: Kind,
@@ -103,6 +117,7 @@ pub enum ErrorKind {
         expected: u32,
     },
     /// The types line up, but the expected length of the target type is different from the length of the input value.
+    #[display(fmt = "Cannot encode to type; expected length {expected_len} but got length {actual_len}")]
     WrongLength {
         /// Length we have
         actual_len: usize,
@@ -110,6 +125,7 @@ pub enum ErrorKind {
         expected_len: usize,
     },
     /// We cannot encode the number given into the target type; it's out of range.
+    #[display(fmt = "Number {value} is out of range for target type {expected}")]
     NumberOutOfRange {
         /// A string represenatation of the numeric value that was out of range.
         value: String,
@@ -117,6 +133,7 @@ pub enum ErrorKind {
         expected: u32,
     },
     /// Cannot find a variant with a matching name on the target type.
+    #[display(fmt = "Variant {name} does not exist on type with ID {expected}")]
     CannotFindVariant {
         /// Variant name we can't find in the expected type.
         name: String,
@@ -124,60 +141,28 @@ pub enum ErrorKind {
         expected: u32,
     },
     /// Cannot find a field on our source type that's needed for the target type.
+    #[display(fmt = "Field {name} does not exist in our source struct")]
     CannotFindField {
         /// Name of the field which was not provided.
         name: String,
     },
     /// A custom error.
-    Custom(CustomError),
+    #[from]
+    #[display(fmt = "Custom error: {_0}")]
+    Custom(Box<dyn CustomError>),
 }
 
-impl From<CustomError> for ErrorKind {
-    fn from(err: CustomError) -> ErrorKind {
-        ErrorKind::Custom(err)
-    }
-}
-
-impl Display for ErrorKind {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            ErrorKind::TypeNotFound(id) => write!(f, "Cannot find type with ID {id}"),
-            ErrorKind::WrongShape { actual, expected } => {
-                write!(f, "Cannot encode {actual:?} into type with ID {expected}")
-            }
-            ErrorKind::WrongLength {
-                actual_len,
-                expected_len,
-            } => {
-                write!(f, "Cannot encode to type; expected length {expected_len} but got length {actual_len}")
-            }
-            ErrorKind::NumberOutOfRange { value, expected } => {
-                write!(
-                    f,
-                    "Number {value} is out of range for target type {expected}"
-                )
-            }
-            ErrorKind::CannotFindVariant { name, expected } => {
-                write!(
-                    f,
-                    "Variant {name} does not exist on type with ID {expected}"
-                )
-            }
-            ErrorKind::CannotFindField { name } => {
-                write!(f, "Field {name} does not exist in our source struct")
-            }
-            ErrorKind::Custom(custom_error) => {
-                write!(f, "Custom error: {custom_error:?}")
-            }
-        }
-    }
-}
-
+/// Anything implementing this trait can be used in [`ErrorKind::Custom`].
 #[cfg(feature = "std")]
-type CustomError = Box<dyn std::error::Error + Send + Sync + 'static>;
+pub trait CustomError: std::error::Error + Send + Sync + 'static {}
+#[cfg(feature = "std")]
+impl <T: std::error::Error + Send + Sync + 'static> CustomError for T {}
 
+/// Anything implementing this trait can be used in [`ErrorKind::Custom`].
 #[cfg(not(feature = "std"))]
-type CustomError = Box<dyn core::fmt::Debug + Send + Sync + 'static>;
+pub trait CustomError: core::fmt::Debug + core::fmt::Display + Send + Sync + 'static {}
+#[cfg(not(feature = "std"))]
+impl <T: core::fmt::Debug + core::fmt::Display + Send + Sync + 'static> CustomError for T {}
 
 /// The kind of type that we're trying to encode.
 #[allow(missing_docs)]
