@@ -52,6 +52,15 @@ impl Error {
 
         Error::new(ErrorKind::Custom(Box::new(StrError(error))))
     }
+    /// Construct a custom error from an owned string.
+    pub fn custom_string(error: String) -> Error {
+        #[derive(derive_more::Display, Debug)]
+        pub struct StringError(String);
+        #[cfg(feature = "std")]
+        impl std::error::Error for StringError {}
+
+        Error::new(ErrorKind::Custom(Box::new(StringError(error))))
+    }
     /// Retrieve more information about what went wrong.
     pub fn kind(&self) -> &ErrorKind {
         &self.kind
@@ -117,7 +126,9 @@ pub enum ErrorKind {
         expected: u32,
     },
     /// The types line up, but the expected length of the target type is different from the length of the input value.
-    #[display(fmt = "Cannot encode to type; expected length {expected_len} but got length {actual_len}")]
+    #[display(
+        fmt = "Cannot encode to type; expected length {expected_len} but got length {actual_len}"
+    )]
     WrongLength {
         /// Length we have
         actual_len: usize,
@@ -156,13 +167,13 @@ pub enum ErrorKind {
 #[cfg(feature = "std")]
 pub trait CustomError: std::error::Error + Send + Sync + 'static {}
 #[cfg(feature = "std")]
-impl <T: std::error::Error + Send + Sync + 'static> CustomError for T {}
+impl<T: std::error::Error + Send + Sync + 'static> CustomError for T {}
 
 /// Anything implementing this trait can be used in [`ErrorKind::Custom`].
 #[cfg(not(feature = "std"))]
 pub trait CustomError: core::fmt::Debug + core::fmt::Display + Send + Sync + 'static {}
 #[cfg(not(feature = "std"))]
-impl <T: core::fmt::Debug + core::fmt::Display + Send + Sync + 'static> CustomError for T {}
+impl<T: core::fmt::Debug + core::fmt::Display + Send + Sync + 'static> CustomError for T {}
 
 /// The kind of type that we're trying to encode.
 #[allow(missing_docs)]
