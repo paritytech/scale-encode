@@ -1079,4 +1079,78 @@ mod test {
             ("hello".to_string(), (123u8,), true, (1u64,)),
         );
     }
+
+    #[test]
+    fn encode_to_number_skipping_attrs_via_macro_works() {
+        struct NotEncodeAsType;
+
+        #[derive(EncodeAsType)]
+        #[encode_as_type(crate_path = "crate")]
+        struct FooNotSkipping {
+            value: u64,
+            other: bool,
+            third: String,
+        }
+
+        #[derive(EncodeAsType)]
+        #[encode_as_type(crate_path = "crate")]
+        struct FooSkipping {
+            value: u64,
+            #[codec(skip)]
+            other: bool,
+            // Even though this type doesn't impl EncodeAsType,
+            // it's ignored so should be fine:
+            #[codec(skip)]
+            third: NotEncodeAsType,
+        }
+
+        assert_value_roundtrips_to(
+            FooSkipping {
+                value: 123,
+                other: true,
+                third: NotEncodeAsType,
+            },
+            123u64,
+        );
+    }
+
+    #[test]
+    fn encode_unnamed_to_number_skipping_attrs_via_macro_works() {
+        struct NotEncodeAsType;
+
+        #[derive(EncodeAsType)]
+        #[encode_as_type(crate_path = "crate")]
+        struct FooSkipping(
+            u64,
+            #[codec(skip)] bool,
+            // Even though this type doesn't impl EncodeAsType,
+            // it's ignored so should be fine:
+            #[codec(skip)] NotEncodeAsType,
+        );
+
+        assert_value_roundtrips_to(FooSkipping(123, true, NotEncodeAsType), 123u64);
+    }
+
+    // If you don't skip values, you can't turn a multi-value
+    // struct into a number.
+    #[test]
+    #[should_panic]
+    fn encode_to_number_not_skipping_via_macro_fails() {
+        #[derive(EncodeAsType)]
+        #[encode_as_type(crate_path = "crate")]
+        struct FooNotSkipping {
+            value: u64,
+            other: bool,
+            third: String,
+        }
+
+        assert_value_roundtrips_to(
+            FooNotSkipping {
+                value: 123,
+                other: true,
+                third: "hello".to_string(),
+            },
+            123u64,
+        );
+    }
 }
