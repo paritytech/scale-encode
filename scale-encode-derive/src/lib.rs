@@ -13,14 +13,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use darling::FromAttributes;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, punctuated::Punctuated, DeriveInput};
 
+// The default attribute name for attrs
 const ATTR_NAME: &str = "encode_as_type";
 
 // Macro docs in main crate; don't add any docs here.
-#[proc_macro_derive(EncodeAsType, attributes(encode_as_type))]
+#[proc_macro_derive(EncodeAsType, attributes(encode_as_type, codec))]
 pub fn derive_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -76,6 +78,7 @@ fn generate_enum_impl(
 
     quote!(
         impl #impl_generics #path_to_scale_encode::EncodeAsType for #path_to_type #ty_generics #where_clause {
+            #[allow(unused_variables)]
             fn encode_as_type_to(
                 &self,
                 // long variable names to prevent conflict with struct field names:
@@ -108,6 +111,7 @@ fn generate_struct_impl(
 
     quote!(
         impl #impl_generics #path_to_scale_encode::EncodeAsType for #path_to_type #ty_generics #where_clause {
+            #[allow(unused_variables)]
             fn encode_as_type_to(
                 &self,
                 // long variable names to prevent conflict with struct field names:
@@ -124,6 +128,7 @@ fn generate_struct_impl(
             }
         }
         impl #impl_generics #path_to_scale_encode::EncodeAsFields for #path_to_type #ty_generics #where_clause {
+            #[allow(unused_variables)]
             fn encode_as_fields_to(
                 &self,
                 // long variable names to prevent conflict with struct field names:
@@ -181,11 +186,14 @@ fn fields_to_matcher_and_composite(
                 let field_name = &f.ident;
                 quote!(#field_name)
             });
-            let tuple_body = fields.named.iter().map(|f| {
-                let field_name_str = f.ident.as_ref().unwrap().to_string();
-                let field_name = &f.ident;
-                quote!((Some(#field_name_str), #field_name as &dyn #path_to_scale_encode::EncodeAsType))
-            });
+            let tuple_body = fields.named
+                .iter()
+                .filter(|f| !should_skip(&f.attrs))
+                .map(|f| {
+                    let field_name_str = f.ident.as_ref().unwrap().to_string();
+                    let field_name = &f.ident;
+                    quote!((Some(#field_name_str), #field_name as &dyn #path_to_scale_encode::EncodeAsType))
+                });
 
             (
                 quote!({#( #match_body ),*}),
@@ -197,10 +205,12 @@ fn fields_to_matcher_and_composite(
                 .unnamed
                 .iter()
                 .enumerate()
-                .map(|(idx, _)| format_ident!("_{idx}"));
-            let match_body = field_idents.clone().map(|i| quote!(#i));
+                .map(|(idx, f)| (format_ident!("_{idx}"), f));
+
+            let match_body = field_idents.clone().map(|(i, _)| quote!(#i));
             let tuple_body = field_idents
-                .map(|i| quote!((None as Option<&'static str>, #i as &dyn #path_to_scale_encode::EncodeAsType)));
+                .filter(|(_, f)| !should_skip(&f.attrs))
+                .map(|(i, _)| quote!((None as Option<&'static str>, #i as &dyn #path_to_scale_encode::EncodeAsType)));
 
             (
                 quote!((#( #match_body ),*)),
@@ -254,4 +264,19 @@ impl TopLevelAttrs {
 
         Ok(res)
     }
+}
+
+// Checks if the attributes contain `skip`.
+//
+// NOTE: Since we only care about `skip` at the moment, we just expose this helper,
+// but if we add more attrs we can expose `FieldAttrs` properly:
+fn should_skip(attrs: &[syn::Attribute]) -> bool {
+    #[derive(FromAttributes, Default)]
+    #[darling(attributes(encode_as_type, codec))]
+    struct FieldAttrs {
+        #[darling(default)]
+        skip: bool,
+    }
+
+    FieldAttrs::from_attributes(attrs).unwrap_or_default().skip
 }
