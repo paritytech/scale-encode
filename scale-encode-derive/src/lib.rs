@@ -266,7 +266,10 @@ impl TopLevelAttrs {
     }
 }
 
-// Since we only care about `skip` at the moment, we just expose this helper,
+// Checks if the attributes contain `skip`.
+//
+// NOTE: Since we only care about `skip` at the moment, we just expose this helper,
+// but if we add more attrs we can expose `FieldAttrs` properly:
 // but if we add more attrs we can expose `FieldAttrs` properly:
 fn should_skip(attrs: &[syn::Attribute]) -> bool {
     #[derive(FromAttributes, Default)]
