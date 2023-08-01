@@ -1096,7 +1096,7 @@ mod test {
         #[encode_as_type(crate_path = "crate")]
         struct FooSkipping {
             value: u64,
-            #[codec(skip)]
+            #[encode_as_type(skip)]
             other: bool,
             // Even though this type doesn't impl EncodeAsType,
             // it's ignored so should be fine:
@@ -1122,7 +1122,7 @@ mod test {
         #[encode_as_type(crate_path = "crate")]
         struct FooSkipping(
             u64,
-            #[codec(skip)] bool,
+            #[encode_as_type(skip)] bool,
             // Even though this type doesn't impl EncodeAsType,
             // it's ignored so should be fine:
             #[codec(skip)] NotEncodeAsType,

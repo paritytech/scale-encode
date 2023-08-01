@@ -13,14 +13,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use darling::FromAttributes;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, punctuated::Punctuated, DeriveInput};
 
 // The default attribute name for attrs
 const ATTR_NAME: &str = "encode_as_type";
-// An alternate name for any attrs we also want to work with #[codec].
-const ALT_ATTR_NAME: &str = "codec";
 
 // Macro docs in main crate; don't add any docs here.
 #[proc_macro_derive(EncodeAsType, attributes(encode_as_type, codec))]
@@ -267,14 +266,15 @@ impl TopLevelAttrs {
     }
 }
 
-/// Look for a `#[codec(skip)]` or `#[encode_as_type(skip)]` in the given attributes.
+// Since we only care about `skip` at the moment, we just expose this helper,
+// but if we add more attrs we can expose `FieldAttrs` properly:
 fn should_skip(attrs: &[syn::Attribute]) -> bool {
-    attrs.iter().any(|attr| {
-        if !attr.path.is_ident(ALT_ATTR_NAME) && !attr.path.is_ident(ATTR_NAME) {
-            return false;
-        }
+    #[derive(FromAttributes, Default)]
+    #[darling(attributes(encode_as_type, codec))]
+    struct FieldAttrs {
+        #[darling(default)]
+        skip: bool,
+    }
 
-        let Ok(attr_value) = attr.parse_args() else { return false };
-        matches!(attr_value, syn::NestedMeta::Meta(syn::Meta::Path(path)) if path.is_ident("skip"))
-    })
+    FieldAttrs::from_attributes(attrs).unwrap_or_default().skip
 }
