@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+mod utils;
+
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, punctuated::Punctuated, DeriveInput};
@@ -197,10 +199,11 @@ fn fields_to_matcher_and_composite(
                 .unnamed
                 .iter()
                 .enumerate()
-                .map(|(idx, _)| format_ident!("_{idx}"));
-            let match_body = field_idents.clone().map(|i| quote!(#i));
+                .map(|(idx, f)| (format_ident!("_{idx}"), f));
+            let match_body = field_idents.clone().map(|(i, _)| quote!(#i));
             let tuple_body = field_idents
-                .map(|i| quote!((None as Option<&'static str>, #i as &dyn #path_to_scale_encode::EncodeAsType)));
+                .filter(|(_, f)| !utils::should_skip(&f.attrs))
+                .map(|(i, _)| quote!((None as Option<&'static str>, #i as &dyn #path_to_scale_encode::EncodeAsType)));
 
             (
                 quote!((#( #match_body ),*)),
