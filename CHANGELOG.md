@@ -4,10 +4,14 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
-## [v0.5.0] - 2023-07-28
+## [v0.5.0] - 2023-08-02
 
 - Improve custom error handling: custom errors now require `Debug + Display` on `no_std` or `Error` on `std`.
-  `Error::custom()` now accepts anything implementing these traits rather than depending on `Into<Error>`.
+  `Error::custom()` now accepts anything implementing these traits rather than depending on `Into<Error>`
+  ([#13](https://github.com/paritytech/scale-encode/pull/13)).
+- Enable using `#[codec(skip)]` or `#[encode_as_type(skip)]` to ignore fields when using the `EncodeAsType` macro.
+  Skipping isn't generally necessary, but can be useful in edge cases (such as allowing a multi-field struct to be
+  encoded to a number if all but one numeric field is skipped) ([#16](https://github.com/paritytech/scale-encode/pull/16)).
 
 ## [v0.4.0] - 2023-07-11
 
