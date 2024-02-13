@@ -16,11 +16,17 @@
 use crate::{error::Error, EncodeAsType};
 use alloc::vec::Vec;
 use primitive_types::{H128, H160, H256, H384, H512, H768};
+use scale_type_resolver::TypeResolver;
 
 macro_rules! impl_encode {
     ($($ty:ty),*) => {$(
         impl EncodeAsType for $ty {
-            fn encode_as_type_to(&self, type_id: u32, types: &scale_info::PortableRegistry, out: &mut Vec<u8>) -> Result<(), Error> {
+            fn encode_as_type_to<R: TypeResolver>(
+                &self,
+                type_id: &R::TypeId,
+                types: &R,
+                out: &mut Vec<u8>,
+            ) -> Result<(), Error> {
                 let type_id = super::find_single_entry_with_same_repr(type_id, types);
                 self.0.encode_as_type_to(type_id, types, out)
             }

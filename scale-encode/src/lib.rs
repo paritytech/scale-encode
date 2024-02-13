@@ -152,9 +152,10 @@ pub mod error;
 pub use alloc::vec::Vec;
 
 pub use error::Error;
+pub use scale_type_resolver::{ TypeResolver, FieldIter, Field };
 
 // Useful types to help implement EncodeAsType/Fields with:
-pub use crate::impls::{Composite, Variant};
+pub use crate::impls::{Composite, CompositeField, Variant};
 pub use scale_info::PortableRegistry;
 
 /// Re-exports of external crates.
@@ -168,16 +169,20 @@ pub mod ext {
 pub trait EncodeAsType {
     /// Given some `type_id`, `types`, a `context` and some output target for the SCALE encoded bytes,
     /// attempt to SCALE encode the current value into the type given by `type_id`.
-    fn encode_as_type_to(
+    fn encode_as_type_to<R: TypeResolver>(
         &self,
-        type_id: u32,
-        types: &PortableRegistry,
+        type_id: &R::TypeId,
+        types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error>;
 
     /// This is a helper function which internally calls [`EncodeAsType::encode_as_type_to`]. Prefer to
     /// implement that instead.
-    fn encode_as_type(&self, type_id: u32, types: &PortableRegistry) -> Result<Vec<u8>, Error> {
+    fn encode_as_type<R: TypeResolver>(
+        &self,
+        type_id: &R::TypeId,
+        types: &R
+    ) -> Result<Vec<u8>, Error> {
         let mut out = Vec::new();
         self.encode_as_type_to(type_id, types, &mut out)?;
         Ok(out)
@@ -189,62 +194,25 @@ pub trait EncodeAsType {
 /// tuple and struct types, and is automatically implemented via the [`macro@EncodeAsType`] macro.
 pub trait EncodeAsFields {
     /// Given some fields describing the shape of a type, attempt to encode to that shape.
-    fn encode_as_fields_to(
+    fn encode_as_fields_to<R: TypeResolver>(
         &self,
-        fields: &mut dyn FieldIter<'_>,
-        types: &PortableRegistry,
+        fields: &mut dyn FieldIter<'_, R::TypeId>,
+        types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error>;
 
     /// This is a helper function which internally calls [`EncodeAsFields::encode_as_fields_to`]. Prefer to
     /// implement that instead.
-    fn encode_as_fields(
+    fn encode_as_fields<R: TypeResolver>(
         &self,
-        fields: &mut dyn FieldIter<'_>,
-        types: &PortableRegistry,
+        fields: &mut dyn FieldIter<'_, R::TypeId>,
+        types: &R,
     ) -> Result<Vec<u8>, Error> {
         let mut out = Vec::new();
         self.encode_as_fields_to(fields, types, &mut out)?;
         Ok(out)
     }
 }
-
-/// A representation of a single field to be encoded via [`EncodeAsFields::encode_as_fields_to`].
-#[derive(Debug, Clone, Copy)]
-pub struct Field<'a> {
-    name: Option<&'a str>,
-    id: u32,
-}
-
-impl<'a> Field<'a> {
-    /// Construct a new field with an ID and optional name.
-    pub fn new(id: u32, name: Option<&'a str>) -> Self {
-        Field { id, name }
-    }
-    /// Create a new unnamed field.
-    pub fn unnamed(id: u32) -> Self {
-        Field { name: None, id }
-    }
-    /// Create a new named field.
-    pub fn named(id: u32, name: &'a str) -> Self {
-        Field {
-            name: Some(name),
-            id,
-        }
-    }
-    /// The field name, if any.
-    pub fn name(&self) -> Option<&'a str> {
-        self.name
-    }
-    /// The field ID.
-    pub fn id(&self) -> u32 {
-        self.id
-    }
-}
-
-/// An iterator over a set of fields.
-pub trait FieldIter<'a>: Iterator<Item = Field<'a>> {}
-impl<'a, T> FieldIter<'a> for T where T: Iterator<Item = Field<'a>> {}
 
 /// The `EncodeAsType` derive macro can be used to implement `EncodeAsType`
 /// on structs and enums whose fields all implement `EncodeAsType`.
@@ -315,16 +283,3 @@ impl<'a, T> FieldIter<'a> for T where T: Iterator<Item = Field<'a>> {}
 ///   behaviour and provide your own trait bounds instead using this option.
 #[cfg(feature = "derive")]
 pub use scale_encode_derive::EncodeAsType;
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use alloc::boxed::Box;
-
-    // Confirm object safety of EncodeAsFields; we want this.
-    // (doesn't really need to run; compile time only.)
-    #[test]
-    fn is_object_safe() {
-        fn _foo(_input: Box<dyn EncodeAsFields>) {}
-    }
-}

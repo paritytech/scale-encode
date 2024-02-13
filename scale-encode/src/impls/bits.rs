@@ -17,37 +17,32 @@ use crate::{
     error::{Error, ErrorKind, Kind},
     EncodeAsType,
 };
+use scale_type_resolver::{TypeResolver, visitor};
 use alloc::vec::Vec;
-use scale_info::TypeDef;
 
 impl EncodeAsType for scale_bits::Bits {
-    fn encode_as_type_to(
+    fn encode_as_type_to<R: TypeResolver>(
         &self,
-        type_id: u32,
-        types: &scale_info::PortableRegistry,
+        type_id: &R::TypeId,
+        types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), crate::Error> {
         let type_id = super::find_single_entry_with_same_repr(type_id, types);
-        let ty = types
-            .resolve(type_id)
-            .ok_or_else(|| Error::new(ErrorKind::TypeNotFound(type_id)))?;
 
-        if let TypeDef::BitSequence(ty) = &ty.type_def {
-            let Ok(format) = scale_bits::Format::from_metadata(ty, types) else {
-                return Err(wrong_shape(type_id))
-            };
+        let v = visitor::new(out, |_,_| Err(wrong_shape(type_id)))
+            .visit_bit_sequence(|out, store, order| {
+                let format = scale_bits::Format { store, order };
+                scale_bits::encode_using_format_to(self.iter(), format, out);
+                Ok(())
+            });
 
-            scale_bits::encode_using_format_to(self.iter(), format, out);
-            Ok(())
-        } else {
-            Err(wrong_shape(type_id))
-        }
+        super::resolve_type_and_encode(types, type_id, v)
     }
 }
 
-fn wrong_shape(type_id: u32) -> Error {
+fn wrong_shape(type_id: impl core::fmt::Debug) -> Error {
     Error::new(ErrorKind::WrongShape {
         actual: Kind::BitSequence,
-        expected: type_id,
+        expected_id: format!("{type_id:?}"),
     })
 }

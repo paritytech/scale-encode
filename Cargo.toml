@@ -4,6 +4,7 @@ members = [
     "scale-encode-derive",
     "testing/no_std",
 ]
+resolver = "2"
 
 [workspace.package]
 version = "0.5.0"
@@ -18,3 +19,6 @@ include = ["Cargo.toml", "src/**/*.rs", "README.md", "LICENSE"]
 [workspace.dependencies]
 scale-encode = { version = "0.5.0", path = "scale-encode" }
 scale-encode-derive = { version = "0.5.0", path = "scale-encode-derive" }
+
+[patch.crates-io]
+scale-type-resolver = { path = "../scale-type-resolver" }
