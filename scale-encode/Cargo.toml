@@ -29,7 +29,6 @@ primitive-types = ["dep:primitive-types"]
 bits = ["dep:scale-bits"]
 
 [dependencies]
-scale-info = { version = "2.7.0", default-features = false, features = ["bit-vec"] }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
 scale-type-resolver = "0.1.0"
 scale-bits = { version = "0.5.0", default-features = false, features = ["scale-info"], optional = true }

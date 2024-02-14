@@ -15,8 +15,7 @@
 
 use crate::{
     error::{Error, ErrorKind, Kind, Location},
-    EncodeAsType, Field, FieldIter,
-    TypeResolver
+    EncodeAsType, Field, FieldIter, TypeResolver,
 };
 use alloc::collections::BTreeMap;
 use alloc::{string::ToString, vec::Vec};
@@ -33,7 +32,7 @@ trait EncodeAsTypeWithResolver<R: TypeResolver> {
         out: &mut Vec<u8>,
     ) -> Result<(), Error>;
 }
-impl <T: EncodeAsType, R: TypeResolver> EncodeAsTypeWithResolver<R> for T {
+impl<T: EncodeAsType, R: TypeResolver> EncodeAsTypeWithResolver<R> for T {
     fn encode_as_type_with_resolver_to(
         &self,
         type_id: &R::TypeId,
@@ -49,17 +48,22 @@ impl <T: EncodeAsType, R: TypeResolver> EncodeAsTypeWithResolver<R> for T {
 /// this basically takes a type which implements [`EncodeAsType`] and turns it
 /// into something object safe.
 pub struct CompositeField<'a, R> {
-    val: &'a dyn EncodeAsTypeWithResolver<R>
+    val: &'a dyn EncodeAsTypeWithResolver<R>,
 }
 
-impl <'a, R> Copy for CompositeField<'a, R> {}
-impl <'a, R> Clone for CompositeField<'a, R> {
+impl<'a, R> Copy for CompositeField<'a, R> {}
+impl<'a, R> Clone for CompositeField<'a, R> {
     fn clone(&self) -> Self {
         *self
     }
 }
+impl<'a, R> core::fmt::Debug for CompositeField<'a, R> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("CompositeField")
+    }
+}
 
-impl <'a, R: TypeResolver> CompositeField<'a, R> {
+impl<'a, R: TypeResolver> CompositeField<'a, R> {
     /// Construct a new composite field given some type which implements
     /// [`EncodeAsType`].
     pub fn new<T: EncodeAsType>(val: &'a T) -> Self {
@@ -73,16 +77,18 @@ impl <'a, R: TypeResolver> CompositeField<'a, R> {
         types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
-        self.val.encode_as_type_with_resolver_to(type_id, types, out)
+        self.val
+            .encode_as_type_with_resolver_to(type_id, types, out)
     }
 }
 
-/// This type represents named or unnamed composite values, and can be used
-/// to help generate `EncodeAsType` impls. It's primarily used by the exported
-/// macros to do just that.
+/// This type represents named or unnamed composite values, and can be used to help generate
+/// `EncodeAsType` impls. It's primarily used by the exported macros to do just that.
 ///
 /// ```rust
-/// use scale_encode::{ Error, EncodeAsType, Composite, PortableRegistry };
+/// use scale_encode::{
+///     Error, EncodeAsType, Composite, CompositeField, TypeResolver
+/// };
 ///
 /// struct MyType {
 ///    foo: bool,
@@ -91,18 +97,29 @@ impl <'a, R: TypeResolver> CompositeField<'a, R> {
 /// }
 ///
 /// impl EncodeAsType for MyType {
-///     fn encode_as_type_to(&self, type_id: u32, types: &PortableRegistry, out: &mut Vec<u8>) -> Result<(), Error> {
-///         Composite([
-///             (Some("foo"), &self.foo as &dyn EncodeAsType),
-///             (Some("bar"), &self.bar as &dyn EncodeAsType),
-///             (Some("wibble"), &self.wibble as &dyn EncodeAsType)
-///         ].into_iter()).encode_as_type_to(type_id, types, out)
+///     fn encode_as_type_to<R: TypeResolver>(
+///         &self,
+///         type_id: &R::TypeId,
+///         types: &R,
+///         out: &mut Vec<u8>
+///     ) -> Result<(), Error> {
+///         Composite::new([
+///             (Some("foo"), CompositeField::new(&self.foo)),
+///             (Some("bar"), CompositeField::new(&self.bar)),
+///             (Some("wibble"), CompositeField::new(&self.wibble))
+///         ].into_iter()).encode_composite_as_type_to(type_id, types, out)
 ///     }
 /// }
 /// ```
+///
+/// [`Composite`] cannot implement [`EncodeAsType`] itself, because it is tied to being
+/// encoded with a specific `R: TypeResolver`, whereas things implementing [`EncodeAsType`]
+/// need to be encodable using _any_ [`TypeResolver`]. This is ultimately because
+/// [`EncodeAsType`] is not object safe, which prevents it from being used to describe
+/// [`CompositeFields`][CompositeField].
 pub struct Composite<R, Vals> {
     vals: Vals,
-    marker: core::marker::PhantomData<R>
+    marker: core::marker::PhantomData<R>,
 }
 
 impl<'a, R, Vals> Composite<R, Vals>
@@ -115,14 +132,30 @@ where
     ///
     /// ```rust
     /// use scale_encode::{ Composite, CompositeField };
+    /// use scale_info::PortableRegistry;
     ///
-    /// Composite::new([
+    /// Composite::<PortableRegistry, _>::new([
     ///     (Some("foo"), CompositeField::new(&123)),
     ///     (Some("bar"), CompositeField::new(&"hello"))
     /// ].into_iter());
     /// ```
     pub fn new(vals: Vals) -> Self {
-        Composite { vals, marker: core::marker::PhantomData }
+        Composite {
+            vals,
+            marker: core::marker::PhantomData,
+        }
+    }
+
+    /// A shortcut for [`Self::encode_composite_as_type_to()`] for when you just
+    /// want it to allocate and return the encoded bytes.
+    pub fn encode_composite_as_type(
+        &self,
+        type_id: &R::TypeId,
+        types: &R,
+    ) -> Result<Vec<u8>, Error> {
+        let mut out = Vec::new();
+        self.encode_composite_as_type_to(type_id, types, &mut out)?;
+        Ok(out)
     }
 
     /// Encode this composite value as the provided type to the output bytes.
@@ -139,62 +172,75 @@ where
         // are names, we may want to line up input field(s) on them.
         let type_id = skip_through_single_unnamed_fields(type_id, types);
 
-        let v = visitor
-            ::new((out, vals_iter), |(out, mut vals_iter), _| {
-                // Rather than immediately giving up, we should at least see whether
-                // we can skip one level in to our value and encode that.
-                if vals_iter_len == 1 {
-                    return vals_iter
-                        .next()
-                        .unwrap()
-                        .1
-                        .encode_composite_field_to(type_id, types, out);
-                }
+        let v = visitor::new((out, vals_iter), |(out, mut vals_iter), _| {
+            // Rather than immediately giving up, we should at least see whether
+            // we can skip one level in to our value and encode that.
+            if vals_iter_len == 1 {
+                return vals_iter
+                    .next()
+                    .unwrap()
+                    .1
+                    .encode_composite_field_to(type_id, types, out);
+            }
 
-                // If we get here, then it means the value we were given had more than
-                // one field, and the type we were given was ultimately some one-field thing
-                // that contained a non composite/tuple type, so it would never work out.
-                Err(Error::new(ErrorKind::WrongShape {
-                    actual: Kind::Tuple,
-                    expected_id: format!("{type_id:?}"),
-                }))
-            })
-            .visit_not_found(|_| {
-                Err(Error::new(ErrorKind::TypeNotFound(format!("{type_id:?}"))))
-            })
-            .visit_composite(|(out,mut vals_iter), mut fields| {
-                // If vals are named, we may need to line them up with some named composite.
-                // If they aren't named, we only care about lining up based on matching lengths.
-                let is_named_vals = vals_iter.clone().any(|(name, _)| name.is_some());
+            // If we get here, then it means the value we were given had more than
+            // one field, and the type we were given was ultimately some one-field thing
+            // that contained a non composite/tuple type, so it would never work out.
+            Err(Error::new(ErrorKind::WrongShape {
+                actual: Kind::Struct,
+                expected_id: format!("{type_id:?}"),
+            }))
+        })
+        .visit_not_found(|_| Err(Error::new(ErrorKind::TypeNotFound(format!("{type_id:?}")))))
+        .visit_composite(|(out, mut vals_iter), mut fields| {
+            // If vals are named, we may need to line them up with some named composite.
+            // If they aren't named, we only care about lining up based on matching lengths.
+            let is_named_vals = vals_iter.clone().any(|(name, _)| name.is_some());
 
-                // If there is exactly one val that isn't named, then we know it won't line
-                // up with this composite then, so try encoding one level in.
-                if !is_named_vals && vals_iter_len == 1 {
-                    return vals_iter
-                        .next()
-                        .unwrap()
-                        .1
-                        .encode_composite_field_to(type_id, types, out);
-                }
+            // If there is exactly one val that isn't named, then we know it won't line
+            // up with this composite then, so try encoding one level in.
+            if !is_named_vals && vals_iter_len == 1 {
+                return vals_iter
+                    .next()
+                    .unwrap()
+                    .1
+                    .encode_composite_field_to(type_id, types, out);
+            }
 
-                self.encode_composite_fields_to(&mut fields, types, out)
-            })
-            .visit_tuple(|(out,mut vals_iter), type_ids| {
-                // If there is exactly one val, it won't line up with the tuple then, so
-                // try encoding one level in instead.
-                if vals_iter_len == 1 {
-                    return vals_iter
-                        .next()
-                        .unwrap()
-                        .1
-                        .encode_composite_field_to(type_id, types, out);
-                }
+            self.encode_composite_fields_to(&mut fields, types, out)
+        })
+        .visit_tuple(|(out, mut vals_iter), type_ids| {
+            // If there is exactly one val, it won't line up with the tuple then, so
+            // try encoding one level in instead.
+            if vals_iter_len == 1 {
+                return vals_iter
+                    .next()
+                    .unwrap()
+                    .1
+                    .encode_composite_field_to(type_id, types, out);
+            }
 
-                let mut fields = type_ids.map(|id| Field::unnamed(id));
-                self.encode_composite_fields_to(&mut fields as &mut dyn FieldIter<'_, R::TypeId>, types, out)
-            });
+            let mut fields = type_ids.map(|id| Field::unnamed(id));
+            self.encode_composite_fields_to(
+                &mut fields as &mut dyn FieldIter<'_, R::TypeId>,
+                types,
+                out,
+            )
+        });
 
         super::resolve_type_and_encode(types, type_id, v)
+    }
+
+    /// A shortcut for [`Self::encode_composite_fields_to()`] for when you just
+    /// want it to allocate and return the encoded bytes.
+    pub fn encode_composite_fields(
+        &self,
+        fields: &mut dyn FieldIter<'_, R::TypeId>,
+        types: &R,
+    ) -> Result<Vec<u8>, Error> {
+        let mut out = Vec::new();
+        self.encode_composite_fields_to(fields, types, &mut out)?;
+        Ok(out)
     }
 
     /// Encode the composite fields as the provided field description to the output bytes
@@ -230,7 +276,9 @@ where
                 // Find the field in our source type:
                 let name = field.name.unwrap_or("");
                 let Some(value) = source_fields_by_name.get(name) else {
-                    return Err(Error::new(ErrorKind::CannotFindField { name: name.to_string() }))
+                    return Err(Error::new(ErrorKind::CannotFindField {
+                        name: name.to_string(),
+                    }));
                 };
 
                 // Encode the value to the output:
@@ -253,14 +301,15 @@ where
             }
 
             for (idx, (field, (name, val))) in fields.iter().zip(vals_iter).enumerate() {
-                val.encode_composite_field_to(field.id, types, out).map_err(|e| {
-                    let loc = if let Some(name) = name {
-                        Location::field(name.to_string())
-                    } else {
-                        Location::idx(idx)
-                    };
-                    e.at(loc)
-                })?;
+                val.encode_composite_field_to(field.id, types, out)
+                    .map_err(|e| {
+                        let loc = if let Some(name) = name {
+                            Location::field(name.to_string())
+                        } else {
+                            Location::idx(idx)
+                        };
+                        e.at(loc)
+                    })?;
             }
             Ok(())
         }
@@ -269,30 +318,30 @@ where
 
 // Single unnamed fields carry no useful information and can be skipped through.
 // Single named fields may still be useful to line up with named composites.
-fn skip_through_single_unnamed_fields<'a, R: TypeResolver>(type_id: &'a R::TypeId, types: &'a R) -> &'a R::TypeId {
-    let v = visitor::new((), |_,_| type_id)
-        .visit_composite(|_,fields| {
+fn skip_through_single_unnamed_fields<'a, R: TypeResolver>(
+    type_id: &'a R::TypeId,
+    types: &'a R,
+) -> &'a R::TypeId {
+    let v = visitor::new((), |_, _| type_id)
+        .visit_composite(|_, fields| {
             // If exactly 1 unnamed field, recurse into it, else return current type ID.
             let Some(f) = fields.next() else {
-                return type_id
+                return type_id;
             };
-            let None = fields.next() else {
-                return type_id
+            if fields.next().is_some() || f.name.is_some() {
+                return type_id;
             };
-            if f.name.is_some() {
-                return type_id
-            }
             skip_through_single_unnamed_fields(f.id, types)
         })
-        .visit_tuple(|_,type_ids| {
+        .visit_tuple(|_, type_ids| {
             // Else if exactly 1 tuple entry, recurse into it, else return current type ID.
-            let Some(type_id) = type_ids.next() else {
-                return type_id
+            let Some(new_type_id) = type_ids.next() else {
+                return type_id;
             };
-            let None = type_ids.next() else {
-                return type_id
+            if type_ids.next().is_some() {
+                return type_id;
             };
-            skip_through_single_unnamed_fields(type_id, types)
+            skip_through_single_unnamed_fields(new_type_id, types)
         });
 
     types.resolve_type(type_id, v).unwrap_or(type_id)

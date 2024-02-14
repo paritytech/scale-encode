@@ -47,7 +47,7 @@ fn get_type_info<T: TypeInfo + 'static>() -> (u32, PortableRegistry) {
     let mut types = scale_info::Registry::new();
     let ty = types.register_type(&m);
     let portable_registry: PortableRegistry = types.into();
-    (ty.id(), portable_registry)
+    (ty.id, portable_registry)
 }
 
 // Encode the left value via EncodeAsType into the shape of the right value.
@@ -59,7 +59,7 @@ where
     B: TypeInfo + Encode + 'static,
 {
     let (type_id, types) = get_type_info::<B>();
-    let a_bytes = a.encode_as_type(type_id, &types).unwrap();
+    let a_bytes = a.encode_as_type(&type_id, &types).unwrap();
     let b_bytes = b.encode();
     assert_eq!(a_bytes, b_bytes);
 }
@@ -152,11 +152,10 @@ pub mod error;
 pub use alloc::vec::Vec;
 
 pub use error::Error;
-pub use scale_type_resolver::{ TypeResolver, FieldIter, Field };
 
 // Useful types to help implement EncodeAsType/Fields with:
 pub use crate::impls::{Composite, CompositeField, Variant};
-pub use scale_info::PortableRegistry;
+pub use scale_type_resolver::{Field, FieldIter, TypeResolver};
 
 /// Re-exports of external crates.
 pub mod ext {
@@ -181,7 +180,7 @@ pub trait EncodeAsType {
     fn encode_as_type<R: TypeResolver>(
         &self,
         type_id: &R::TypeId,
-        types: &R
+        types: &R,
     ) -> Result<Vec<u8>, Error> {
         let mut out = Vec::new();
         self.encode_as_type_to(type_id, types, &mut out)?;

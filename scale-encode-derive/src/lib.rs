@@ -137,7 +137,7 @@ fn generate_struct_impl(
                 __encode_as_type_out: &mut #path_to_scale_encode::Vec<u8>
             ) -> Result<(), #path_to_scale_encode::Error> {
                 let #path_to_type #matcher = self;
-                #composite.encode_composite_as_fields_to(
+                #composite.encode_composite_fields_to(
                     __encode_as_type_fields,
                     __encode_as_type_types,
                     __encode_as_type_out

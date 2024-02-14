@@ -139,7 +139,9 @@ pub enum ErrorKind {
         expected_len: usize,
     },
     /// We cannot encode the number given into the target type; it's out of range.
-    #[display(fmt = "Number {value} is out of range for target type with identifier {expected_id}")]
+    #[display(
+        fmt = "Number {value} is out of range for target type with identifier {expected_id}"
+    )]
     NumberOutOfRange {
         /// A string represenatation of the numeric value that was out of range.
         value: String,

@@ -17,8 +17,8 @@ use crate::{
     error::{Error, ErrorKind, Kind},
     EncodeAsType,
 };
-use scale_type_resolver::{TypeResolver, visitor};
 use alloc::vec::Vec;
+use scale_type_resolver::{visitor, TypeResolver};
 
 impl EncodeAsType for scale_bits::Bits {
     fn encode_as_type_to<R: TypeResolver>(
@@ -29,12 +29,13 @@ impl EncodeAsType for scale_bits::Bits {
     ) -> Result<(), crate::Error> {
         let type_id = super::find_single_entry_with_same_repr(type_id, types);
 
-        let v = visitor::new(out, |_,_| Err(wrong_shape(type_id)))
-            .visit_bit_sequence(|out, store, order| {
+        let v = visitor::new(out, |_, _| Err(wrong_shape(type_id))).visit_bit_sequence(
+            |out, store, order| {
                 let format = scale_bits::Format { store, order };
                 scale_bits::encode_using_format_to(self.iter(), format, out);
                 Ok(())
-            });
+            },
+        );
 
         super::resolve_type_and_encode(types, type_id, v)
     }
