@@ -17,7 +17,7 @@ use crate::{
     error::{Error, ErrorKind, Kind},
     EncodeAsType,
 };
-use alloc::vec::Vec;
+use alloc::{format, vec::Vec};
 use scale_type_resolver::{visitor, TypeResolver};
 
 impl EncodeAsType for scale_bits::Bits {

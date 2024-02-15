@@ -15,7 +15,7 @@
 
 use super::composite::{Composite, CompositeField};
 use crate::error::{Error, ErrorKind, Kind};
-use alloc::{string::ToString, vec::Vec};
+use alloc::{format, string::ToString, vec::Vec};
 use codec::Encode;
 use scale_type_resolver::{visitor, TypeResolver};
 

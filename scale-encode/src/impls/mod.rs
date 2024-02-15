@@ -20,11 +20,6 @@ mod composite;
 mod primitive_types;
 mod variant;
 
-// Useful to help encode key-value types or custom variant types manually.
-// Primarily used in the derive macro.
-pub use composite::{Composite, CompositeField};
-pub use variant::Variant;
-
 use crate::{
     error::{Error, ErrorKind, Kind},
     EncodeAsFields, EncodeAsType,
@@ -33,6 +28,7 @@ use alloc::{
     borrow::ToOwned,
     boxed::Box,
     collections::{BTreeMap, BTreeSet, BinaryHeap, LinkedList, VecDeque},
+    format,
     rc::Rc,
     string::{String, ToString},
     sync::Arc,
@@ -49,6 +45,11 @@ use core::{
     time::Duration,
 };
 use scale_type_resolver::{visitor, FieldIter, Primitive, ResolvedTypeVisitor, TypeResolver};
+
+// Useful to help encode key-value types or custom variant types manually.
+// Primarily used in the derive macro.
+pub use composite::{Composite, CompositeField};
+pub use variant::Variant;
 
 fn resolve_type_and_encode<
     'resolver,

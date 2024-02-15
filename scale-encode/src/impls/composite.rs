@@ -18,7 +18,7 @@ use crate::{
     EncodeAsType, Field, FieldIter, TypeResolver,
 };
 use alloc::collections::BTreeMap;
-use alloc::{string::ToString, vec::Vec};
+use alloc::{format, string::ToString, vec::Vec};
 use scale_type_resolver::visitor;
 
 /// This trait exists to get around object safety issues using [`EncodeAsType`].
@@ -220,7 +220,7 @@ where
                     .encode_composite_field_to(type_id, types, out);
             }
 
-            let mut fields = type_ids.map(|id| Field::unnamed(id));
+            let mut fields = type_ids.map(Field::unnamed);
             self.encode_composite_fields_to(
                 &mut fields as &mut dyn FieldIter<'_, R::TypeId>,
                 types,
