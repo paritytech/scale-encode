@@ -71,6 +71,16 @@ jobs:
           # we run tests using BitVec<u64,_> which doesn't.
           args: --all-features --target wasm32-unknown-unknown
 
+  diff-readme-files:
+    name: Check that READMEs are identical
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Diff READMEs
+        run: diff -q README.md scale-encode/README.md
+
   no_std:
     name: Check no_std build
     runs-on: ubuntu-latest

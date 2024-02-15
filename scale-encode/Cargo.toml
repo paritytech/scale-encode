@@ -17,7 +17,7 @@ include.workspace = true
 default = ["std", "derive", "primitive-types", "bits"]
 
 # Activates std feature.
-std = ["scale-info/std"]
+std = []
 
 # Include the derive proc macro.
 derive = ["dep:scale-encode-derive"]
@@ -39,7 +39,7 @@ derive_more = { version = "0.99.17", default-features = false, features = ["from
 
 [dev-dependencies]
 bitvec = { version = "1.0.1", default-features = false }
-scale-info = { version = "2.3.0", features = ["bit-vec", "derive"], default-features = false }
+scale-info = { version = "2.3.0", features = ["bit-vec", "derive", "std"], default-features = false }
 scale-encode-derive = { workspace = true }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive", "bit-vec"] }
 trybuild = "1.0.72"

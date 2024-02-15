@@ -17,8 +17,8 @@
 
 /*!
 `parity-scale-codec` provides an `Encode` trait which allows types to SCALE encode themselves based on their shape.
-This crate builds on this, and allows types to encode themselves based on [`scale_info`] type information. It
-exposes two traits:
+This crate builds on this, and allows types to encode themselves based on type information from a [`TypeResolver`]
+implementation (one such implementation being a `scale_info::PortableRegistry`). It exposes two traits:
 
 - An [`EncodeAsType`] trait which when implemented on some type, describes how it can be SCALE encoded
   with the help of a type ID and type registry describing the expected shape of the encoded bytes.
@@ -164,7 +164,7 @@ pub mod ext {
 }
 
 /// This trait signals that some static type can possibly be SCALE encoded given some
-/// `type_id` and [`PortableRegistry`] which dictates the expected encoding.
+/// `type_id` and a corresponding [`TypeResolver`] which tells us about the expected encoding.
 pub trait EncodeAsType {
     /// Given some `type_id`, `types`, a `context` and some output target for the SCALE encoded bytes,
     /// attempt to SCALE encode the current value into the type given by `type_id`.
