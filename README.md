@@ -1,17 +1,17 @@
 # scale-encode
 
 `parity-scale-codec` provides an `Encode` trait which allows types to SCALE encode themselves based on their shape.
-This crate builds on this, and allows types to encode themselves based on `scale_info` type information. It
-exposes two traits:
+This crate builds on this, and allows types to encode themselves based on type information from a `TypeResolver`
+implementation (one such implementation being a `scale_info::PortableRegistry`). It exposes two traits:
 
 - An `EncodeAsType` trait which when implemented on some type, describes how it can be SCALE encoded
   with the help of a type ID and type registry describing the expected shape of the encoded bytes.
 - An `EncodeAsFields` trait which when implemented on some type, describes how it can be SCALE encoded
-  with the help of a slice of `PortableField`'s or `PortableFieldId`'s and type registry describing the
-  expected shape of the encoded bytes. This is generally only implemented for tuples and structs, since we
-  need a set of fields to map to the provided slices.
+  with the help of an iterator over `Field`s and a type registry describing the expected shape of the
+  encoded bytes. This is generally only implemented for tuples and structs, since we need a set of fields
+  to map to the provided iterator.
 
-Implementations for many built-in types are also provided for each trait, and the `macro@EncodeAsType`
+Implementations for many built-in types are also provided for each trait, and the `EncodeAsType`
 macro makes it easy to generate implementations for new structs and enums.
 
 # Motivation
@@ -24,14 +24,14 @@ use codec::Encode;
 use scale_encode::EncodeAsType;
 use scale_info::{PortableRegistry, TypeInfo};
 
-// We are comonly provided type information, but for our examples we construct type info from
+// We are commonly provided type information, but for our examples we construct type info from
 // any type that implements `TypeInfo`.
 fn get_type_info<T: TypeInfo + 'static>() -> (u32, PortableRegistry) {
     let m = scale_info::MetaType::new::<T>();
     let mut types = scale_info::Registry::new();
     let ty = types.register_type(&m);
     let portable_registry: PortableRegistry = types.into();
-    (ty.id(), portable_registry)
+    (ty.id, portable_registry)
 }
 
 // Encode the left value via EncodeAsType into the shape of the right value.
@@ -43,7 +43,7 @@ where
     B: TypeInfo + Encode + 'static,
 {
     let (type_id, types) = get_type_info::<B>();
-    let a_bytes = a.encode_as_type(type_id, &types).unwrap();
+    let a_bytes = a.encode_as_type(&type_id, &types).unwrap();
     let b_bytes = b.encode();
     assert_eq!(a_bytes, b_bytes);
 }

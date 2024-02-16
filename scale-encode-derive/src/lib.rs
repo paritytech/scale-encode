@@ -67,7 +67,7 @@ fn generate_enum_impl(
         quote!(
             Self::#variant_name #matcher => {
                 #path_to_scale_encode::Variant { name: #variant_name_str, fields: #composite }
-                    .encode_as_type_to(
+                    .encode_variant_as_type_to(
                         __encode_as_type_type_id,
                         __encode_as_type_types,
                         __encode_as_type_out
@@ -79,11 +79,11 @@ fn generate_enum_impl(
     quote!(
         impl #impl_generics #path_to_scale_encode::EncodeAsType for #path_to_type #ty_generics #where_clause {
             #[allow(unused_variables)]
-            fn encode_as_type_to(
+            fn encode_as_type_to<ScaleEncodeResolver: #path_to_scale_encode::TypeResolver>(
                 &self,
                 // long variable names to prevent conflict with struct field names:
-                __encode_as_type_type_id: u32,
-                __encode_as_type_types: &#path_to_scale_encode::PortableRegistry,
+                __encode_as_type_type_id: &ScaleEncodeResolver::TypeId,
+                __encode_as_type_types: &ScaleEncodeResolver,
                 __encode_as_type_out: &mut #path_to_scale_encode::Vec<u8>
             ) -> Result<(), #path_to_scale_encode::Error> {
                 match self {
@@ -112,15 +112,15 @@ fn generate_struct_impl(
     quote!(
         impl #impl_generics #path_to_scale_encode::EncodeAsType for #path_to_type #ty_generics #where_clause {
             #[allow(unused_variables)]
-            fn encode_as_type_to(
+            fn encode_as_type_to<ScaleEncodeResolver: #path_to_scale_encode::TypeResolver>(
                 &self,
                 // long variable names to prevent conflict with struct field names:
-                __encode_as_type_type_id: u32,
-                __encode_as_type_types: &#path_to_scale_encode::PortableRegistry,
+                __encode_as_type_type_id: &ScaleEncodeResolver::TypeId,
+                __encode_as_type_types: &ScaleEncodeResolver,
                 __encode_as_type_out: &mut #path_to_scale_encode::Vec<u8>
             ) -> Result<(), #path_to_scale_encode::Error> {
                 let #path_to_type #matcher = self;
-                #composite.encode_as_type_to(
+                #composite.encode_composite_as_type_to(
                     __encode_as_type_type_id,
                     __encode_as_type_types,
                     __encode_as_type_out
@@ -129,15 +129,15 @@ fn generate_struct_impl(
         }
         impl #impl_generics #path_to_scale_encode::EncodeAsFields for #path_to_type #ty_generics #where_clause {
             #[allow(unused_variables)]
-            fn encode_as_fields_to(
+            fn encode_as_fields_to<ScaleEncodeResolver: #path_to_scale_encode::TypeResolver>(
                 &self,
                 // long variable names to prevent conflict with struct field names:
-                __encode_as_type_fields: &mut dyn #path_to_scale_encode::FieldIter<'_>,
-                __encode_as_type_types: &#path_to_scale_encode::PortableRegistry,
+                __encode_as_type_fields: &mut dyn #path_to_scale_encode::FieldIter<'_, ScaleEncodeResolver::TypeId>,
+                __encode_as_type_types: &ScaleEncodeResolver,
                 __encode_as_type_out: &mut #path_to_scale_encode::Vec<u8>
             ) -> Result<(), #path_to_scale_encode::Error> {
                 let #path_to_type #matcher = self;
-                #composite.encode_as_fields_to(
+                #composite.encode_composite_fields_to(
                     __encode_as_type_fields,
                     __encode_as_type_types,
                     __encode_as_type_out
@@ -192,12 +192,12 @@ fn fields_to_matcher_and_composite(
                 .map(|f| {
                     let field_name_str = f.ident.as_ref().unwrap().to_string();
                     let field_name = &f.ident;
-                    quote!((Some(#field_name_str), #field_name as &dyn #path_to_scale_encode::EncodeAsType))
+                    quote!((Some(#field_name_str), #path_to_scale_encode::CompositeField::new(#field_name)))
                 });
 
             (
                 quote!({#( #match_body ),*}),
-                quote!(#path_to_scale_encode::Composite([#( #tuple_body ),*].into_iter())),
+                quote!(#path_to_scale_encode::Composite::new([#( #tuple_body ),*].into_iter())),
             )
         }
         syn::Fields::Unnamed(fields) => {
@@ -210,16 +210,16 @@ fn fields_to_matcher_and_composite(
             let match_body = field_idents.clone().map(|(i, _)| quote!(#i));
             let tuple_body = field_idents
                 .filter(|(_, f)| !should_skip(&f.attrs))
-                .map(|(i, _)| quote!((None as Option<&'static str>, #i as &dyn #path_to_scale_encode::EncodeAsType)));
+                .map(|(i, _)| quote!((None as Option<&'static str>, #path_to_scale_encode::CompositeField::new(#i))));
 
             (
                 quote!((#( #match_body ),*)),
-                quote!(#path_to_scale_encode::Composite([#( #tuple_body ),*].into_iter())),
+                quote!(#path_to_scale_encode::Composite::new([#( #tuple_body ),*].into_iter())),
             )
         }
         syn::Fields::Unit => (
             quote!(),
-            quote!(#path_to_scale_encode::Composite(([] as [(Option<&'static str>, &dyn #path_to_scale_encode::EncodeAsType);0]).into_iter())),
+            quote!(#path_to_scale_encode::Composite::new(([] as [(Option<&'static str>, #path_to_scale_encode::CompositeField<_>);0]).into_iter())),
         ),
     }
 }

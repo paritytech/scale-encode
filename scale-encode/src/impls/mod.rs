@@ -20,19 +20,15 @@ mod composite;
 mod primitive_types;
 mod variant;
 
-// Useful to help encode key-value types or custom variant types manually.
-// Primarily used in the derive macro.
-pub use composite::Composite;
-pub use variant::Variant;
-
 use crate::{
     error::{Error, ErrorKind, Kind},
-    EncodeAsFields, EncodeAsType, FieldIter,
+    EncodeAsFields, EncodeAsType,
 };
 use alloc::{
     borrow::ToOwned,
     boxed::Box,
     collections::{BTreeMap, BTreeSet, BinaryHeap, LinkedList, VecDeque},
+    format,
     rc::Rc,
     string::{String, ToString},
     sync::Arc,
@@ -48,53 +44,87 @@ use core::{
     ops::{Range, RangeInclusive},
     time::Duration,
 };
-use scale_info::{PortableRegistry, TypeDef, TypeDefPrimitive};
+use scale_type_resolver::{visitor, FieldIter, Primitive, ResolvedTypeVisitor, TypeResolver};
+
+// Useful to help encode key-value types or custom variant types manually.
+// Primarily used in the derive macro.
+pub use composite::{Composite, CompositeField};
+pub use variant::Variant;
+
+fn resolve_type_and_encode<
+    'resolver,
+    R: TypeResolver,
+    V: ResolvedTypeVisitor<'resolver, TypeId = R::TypeId, Value = Result<(), Error>>,
+>(
+    types: &'resolver R,
+    type_id: &R::TypeId,
+    visitor: V,
+) -> Result<(), Error> {
+    match types.resolve_type(type_id, visitor) {
+        Ok(res) => res,
+        Err(e) => Err(Error::new(ErrorKind::TypeResolvingError(e.to_string()))),
+    }
+}
 
 impl EncodeAsType for bool {
-    fn encode_as_type_to(
+    fn encode_as_type_to<R: TypeResolver>(
         &self,
-        type_id: u32,
-        types: &PortableRegistry,
+        type_id: &R::TypeId,
+        types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
         let type_id = find_single_entry_with_same_repr(type_id, types);
-        let ty = types
-            .resolve(type_id)
-            .ok_or_else(|| Error::new(ErrorKind::TypeNotFound(type_id)))?;
 
-        if let TypeDef::Primitive(TypeDefPrimitive::Bool) = &ty.type_def {
-            self.encode_to(out);
-            Ok(())
-        } else {
-            Err(Error::new(ErrorKind::WrongShape {
+        let wrong_shape_err = || {
+            Error::new(ErrorKind::WrongShape {
                 actual: Kind::Bool,
-                expected: type_id,
-            }))
-        }
+                expected_id: format!("{type_id:?}"),
+            })
+        };
+
+        let v = visitor::new((), |_, _| Err(wrong_shape_err()))
+            .visit_primitive(|_, primitive| {
+                if primitive == Primitive::Bool {
+                    self.encode_to(out);
+                    Ok(())
+                } else {
+                    Err(wrong_shape_err())
+                }
+            })
+            .visit_not_found(|_| Err(Error::new(ErrorKind::TypeNotFound(format!("{type_id:?}")))));
+
+        resolve_type_and_encode(types, type_id, v)
     }
 }
 
 impl EncodeAsType for str {
-    fn encode_as_type_to(
+    fn encode_as_type_to<R: TypeResolver>(
         &self,
-        type_id: u32,
-        types: &PortableRegistry,
+        type_id: &R::TypeId,
+        types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
         let type_id = find_single_entry_with_same_repr(type_id, types);
-        let ty = types
-            .resolve(type_id)
-            .ok_or_else(|| Error::new(ErrorKind::TypeNotFound(type_id)))?;
 
-        if let TypeDef::Primitive(TypeDefPrimitive::Str) = &ty.type_def {
-            self.encode_to(out);
-            Ok(())
-        } else {
-            Err(Error::new(ErrorKind::WrongShape {
+        let wrong_shape_err = || {
+            Error::new(ErrorKind::WrongShape {
                 actual: Kind::Str,
-                expected: type_id,
-            }))
-        }
+                expected_id: format!("{type_id:?}"),
+            })
+        };
+
+        let v = visitor::new((), |_, _| Err(wrong_shape_err()))
+            .visit_primitive(|_, primitive| {
+                if primitive == Primitive::Str {
+                    self.encode_to(out);
+                    Ok(())
+                } else {
+                    Err(wrong_shape_err())
+                }
+            })
+            .visit_not_found(|_| Err(Error::new(ErrorKind::TypeNotFound(format!("{type_id:?}")))));
+
+        resolve_type_and_encode(types, type_id, v)
     }
 }
 
@@ -102,10 +132,10 @@ impl<'a, T> EncodeAsType for &'a T
 where
     T: EncodeAsType + ?Sized,
 {
-    fn encode_as_type_to(
+    fn encode_as_type_to<R: TypeResolver>(
         &self,
-        type_id: u32,
-        types: &PortableRegistry,
+        type_id: &R::TypeId,
+        types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
         (*self).encode_as_type_to(type_id, types, out)
@@ -116,10 +146,10 @@ impl<'a, T> EncodeAsType for alloc::borrow::Cow<'a, T>
 where
     T: 'a + EncodeAsType + ToOwned + ?Sized,
 {
-    fn encode_as_type_to(
+    fn encode_as_type_to<R: TypeResolver>(
         &self,
-        type_id: u32,
-        types: &PortableRegistry,
+        type_id: &R::TypeId,
+        types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
         (**self).encode_as_type_to(type_id, types, out)
@@ -130,10 +160,10 @@ impl<T> EncodeAsType for [T]
 where
     T: EncodeAsType,
 {
-    fn encode_as_type_to(
+    fn encode_as_type_to<R: TypeResolver>(
         &self,
-        type_id: u32,
-        types: &PortableRegistry,
+        type_id: &R::TypeId,
+        types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
         encode_iterable_sequence_to(self.len(), self.iter(), type_id, types, out)
@@ -141,10 +171,10 @@ where
 }
 
 impl<const N: usize, T: EncodeAsType> EncodeAsType for [T; N] {
-    fn encode_as_type_to(
+    fn encode_as_type_to<R: TypeResolver>(
         &self,
-        type_id: u32,
-        types: &PortableRegistry,
+        type_id: &R::TypeId,
+        types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
         self[..].encode_as_type_to(type_id, types, out)
@@ -152,10 +182,10 @@ impl<const N: usize, T: EncodeAsType> EncodeAsType for [T; N] {
 }
 
 impl<T> EncodeAsType for PhantomData<T> {
-    fn encode_as_type_to(
+    fn encode_as_type_to<R: TypeResolver>(
         &self,
-        type_id: u32,
-        types: &PortableRegistry,
+        type_id: &R::TypeId,
+        types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
         ().encode_as_type_to(type_id, types, out)
@@ -163,45 +193,45 @@ impl<T> EncodeAsType for PhantomData<T> {
 }
 
 impl<T: EncodeAsType, E: EncodeAsType> EncodeAsType for Result<T, E> {
-    fn encode_as_type_to(
+    fn encode_as_type_to<R: TypeResolver>(
         &self,
-        type_id: u32,
-        types: &PortableRegistry,
+        type_id: &R::TypeId,
+        types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
         match self {
             Ok(v) => Variant {
                 name: "Ok",
-                fields: Composite([(None, v as &dyn EncodeAsType)].iter().copied()),
+                fields: Composite::new([(None, CompositeField::new(v))].iter().copied()),
             }
-            .encode_as_type_to(type_id, types, out),
+            .encode_variant_as_type_to(type_id, types, out),
             Err(e) => Variant {
                 name: "Err",
-                fields: Composite([(None, e as &dyn EncodeAsType)].iter().copied()),
+                fields: Composite::new([(None, CompositeField::new(e))].iter().copied()),
             }
-            .encode_as_type_to(type_id, types, out),
+            .encode_variant_as_type_to(type_id, types, out),
         }
     }
 }
 
 impl<T: EncodeAsType> EncodeAsType for Option<T> {
-    fn encode_as_type_to(
+    fn encode_as_type_to<R: TypeResolver>(
         &self,
-        type_id: u32,
-        types: &PortableRegistry,
+        type_id: &R::TypeId,
+        types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
         match self {
             Some(v) => Variant {
                 name: "Some",
-                fields: Composite([(None, v as &dyn EncodeAsType)].iter().copied()),
+                fields: Composite::new([(None, CompositeField::new(v))].iter().copied()),
             }
-            .encode_as_type_to(type_id, types, out),
+            .encode_variant_as_type_to(type_id, types, out),
             None => Variant {
                 name: "None",
-                fields: Composite([].iter().copied()),
+                fields: Composite::new([].iter().copied()),
             }
-            .encode_as_type_to(type_id, types, out),
+            .encode_variant_as_type_to(type_id, types, out),
         }
     }
 }
@@ -210,73 +240,61 @@ impl<T: EncodeAsType> EncodeAsType for Option<T> {
 macro_rules! impl_encode_number {
     ($ty:ty) => {
         impl EncodeAsType for $ty {
-            fn encode_as_type_to(
+            fn encode_as_type_to<R: TypeResolver>(
                 &self,
-                type_id: u32,
-                types: &PortableRegistry,
+                type_id: &R::TypeId,
+                types: &R,
                 out: &mut Vec<u8>,
             ) -> Result<(), Error> {
                 let type_id = find_single_entry_with_same_repr(type_id, types);
 
-                let ty = types
-                    .resolve(type_id)
-                    .ok_or_else(|| Error::new(ErrorKind::TypeNotFound(type_id)))?;
+                let wrong_shape_err = || {
+                    Error::new(ErrorKind::WrongShape {
+                        actual: Kind::Number,
+                        expected_id: format!("{type_id:?}"),
+                    })
+                };
 
-                fn try_num<T: TryFrom<$ty> + Encode>(
-                    num: $ty,
-                    target_id: u32,
-                    out: &mut Vec<u8>,
-                ) -> Result<(), Error> {
-                    let n: T = num.try_into().map_err(|_| {
-                        Error::new(ErrorKind::NumberOutOfRange {
-                            value: num.to_string(),
-                            expected: target_id,
-                        })
-                    })?;
-                    n.encode_to(out);
-                    Ok(())
-                }
+                let v = visitor::new(out, |_out, _kind| Err(wrong_shape_err()))
+                    .visit_primitive(|out, primitive| {
+                        fn try_num<T: TryFrom<$ty> + Encode>(
+                            num: $ty,
+                            target_id: impl core::fmt::Debug,
+                            out: &mut Vec<u8>,
+                        ) -> Result<(), Error> {
+                            let n: T = num.try_into().map_err(|_| {
+                                Error::new(ErrorKind::NumberOutOfRange {
+                                    value: num.to_string(),
+                                    expected_id: format!("{target_id:?}"),
+                                })
+                            })?;
+                            n.encode_to(out);
+                            Ok(())
+                        }
 
-                match &ty.type_def {
-                    TypeDef::Primitive(TypeDefPrimitive::U8) => try_num::<u8>(*self, type_id, out),
-                    TypeDef::Primitive(TypeDefPrimitive::U16) => {
-                        try_num::<u16>(*self, type_id, out)
-                    }
-                    TypeDef::Primitive(TypeDefPrimitive::U32) => {
-                        try_num::<u32>(*self, type_id, out)
-                    }
-                    TypeDef::Primitive(TypeDefPrimitive::U64) => {
-                        try_num::<u64>(*self, type_id, out)
-                    }
-                    TypeDef::Primitive(TypeDefPrimitive::U128) => {
-                        try_num::<u128>(*self, type_id, out)
-                    }
-                    TypeDef::Primitive(TypeDefPrimitive::I8) => try_num::<i8>(*self, type_id, out),
-                    TypeDef::Primitive(TypeDefPrimitive::I16) => {
-                        try_num::<i16>(*self, type_id, out)
-                    }
-                    TypeDef::Primitive(TypeDefPrimitive::I32) => {
-                        try_num::<i32>(*self, type_id, out)
-                    }
-                    TypeDef::Primitive(TypeDefPrimitive::I64) => {
-                        try_num::<i64>(*self, type_id, out)
-                    }
-                    TypeDef::Primitive(TypeDefPrimitive::I128) => {
-                        try_num::<i128>(*self, type_id, out)
-                    }
-                    TypeDef::Compact(c) => {
-                        let type_id = find_single_entry_with_same_repr(c.type_param.id, types);
-
-                        let ty = types
-                            .resolve(type_id)
-                            .ok_or_else(|| Error::new(ErrorKind::TypeNotFound(type_id)))?;
+                        match primitive {
+                            Primitive::U8 => try_num::<u8>(*self, type_id, out),
+                            Primitive::U16 => try_num::<u16>(*self, type_id, out),
+                            Primitive::U32 => try_num::<u32>(*self, type_id, out),
+                            Primitive::U64 => try_num::<u64>(*self, type_id, out),
+                            Primitive::U128 => try_num::<u128>(*self, type_id, out),
+                            Primitive::I8 => try_num::<i8>(*self, type_id, out),
+                            Primitive::I16 => try_num::<i16>(*self, type_id, out),
+                            Primitive::I32 => try_num::<i32>(*self, type_id, out),
+                            Primitive::I64 => try_num::<i64>(*self, type_id, out),
+                            Primitive::I128 => try_num::<i128>(*self, type_id, out),
+                            _ => Err(wrong_shape_err()),
+                        }
+                    })
+                    .visit_compact(|out, type_id| {
+                        let type_id = find_single_entry_with_same_repr(type_id, types);
 
                         macro_rules! try_compact_num {
                             ($num:expr, $target_kind:expr, $out:expr, $type:ty) => {{
                                 let n: $type = $num.try_into().map_err(|_| {
                                     Error::new(ErrorKind::NumberOutOfRange {
                                         value: $num.to_string(),
-                                        expected: type_id,
+                                        expected_id: format!("{type_id:?}"),
                                     })
                                 })?;
                                 Compact(n).encode_to($out);
@@ -284,33 +302,34 @@ macro_rules! impl_encode_number {
                             }};
                         }
 
-                        match ty.type_def {
-                            TypeDef::Primitive(TypeDefPrimitive::U8) => {
-                                try_compact_num!(*self, NumericKind::U8, out, u8)
-                            }
-                            TypeDef::Primitive(TypeDefPrimitive::U16) => {
-                                try_compact_num!(*self, NumericKind::U16, out, u16)
-                            }
-                            TypeDef::Primitive(TypeDefPrimitive::U32) => {
-                                try_compact_num!(*self, NumericKind::U32, out, u32)
-                            }
-                            TypeDef::Primitive(TypeDefPrimitive::U64) => {
-                                try_compact_num!(*self, NumericKind::U64, out, u64)
-                            }
-                            TypeDef::Primitive(TypeDefPrimitive::U128) => {
-                                try_compact_num!(*self, NumericKind::U128, out, u128)
-                            }
-                            _ => Err(Error::new(ErrorKind::WrongShape {
-                                actual: Kind::Number,
-                                expected: type_id,
-                            })),
-                        }
-                    }
-                    _ => Err(Error::new(ErrorKind::WrongShape {
-                        actual: Kind::Number,
-                        expected: type_id,
-                    })),
-                }
+                        let v = visitor::new(out, |_, _| Err(wrong_shape_err())).visit_primitive(
+                            |out, primitive| match primitive {
+                                Primitive::U8 => {
+                                    try_compact_num!(*self, NumericKind::U8, out, u8)
+                                }
+                                Primitive::U16 => {
+                                    try_compact_num!(*self, NumericKind::U16, out, u16)
+                                }
+                                Primitive::U32 => {
+                                    try_compact_num!(*self, NumericKind::U32, out, u32)
+                                }
+                                Primitive::U64 => {
+                                    try_compact_num!(*self, NumericKind::U64, out, u64)
+                                }
+                                Primitive::U128 => {
+                                    try_compact_num!(*self, NumericKind::U128, out, u128)
+                                }
+                                _ => Err(wrong_shape_err()),
+                            },
+                        );
+
+                        resolve_type_and_encode(types, type_id, v)
+                    })
+                    .visit_not_found(|_out| {
+                        Err(Error::new(ErrorKind::TypeNotFound(format!("{type_id:?}"))))
+                    });
+
+                resolve_type_and_encode(types, type_id, v)
             }
         }
     };
@@ -332,13 +351,13 @@ impl_encode_number!(isize);
 macro_rules! impl_encode_tuple {
     ($($name:ident: $t:ident),*) => {
         impl < $($t),* > EncodeAsType for ($($t,)*) where $($t: EncodeAsType),* {
-            fn encode_as_type_to(&self, type_id: u32, types: &PortableRegistry, out: &mut Vec<u8>) -> Result<(), Error> {
+            fn encode_as_type_to<Resolver: TypeResolver>(&self, type_id: &Resolver::TypeId, types: &Resolver, out: &mut Vec<u8>) -> Result<(), Error> {
                 let ($($name,)*) = self;
-                Composite([
+                Composite::new([
                     $(
-                        (None as Option<&'static str>, $name as &dyn EncodeAsType)
+                        (None as Option<&'static str>, CompositeField::new($name))
                     ,)*
-                ].iter().copied()).encode_as_type_to(type_id, types, out)
+                ].iter().copied()).encode_composite_as_type_to(type_id, types, out)
             }
         }
     }
@@ -374,7 +393,12 @@ macro_rules! impl_encode_seq_via_iterator {
         impl $(< $($param),+ >)? EncodeAsType for $ty $(< $($param),+ >)?
         where $( $($param: EncodeAsType),+ )?
         {
-            fn encode_as_type_to(&self, type_id: u32, types: &PortableRegistry, out: &mut Vec<u8>) -> Result<(), Error> {
+            fn encode_as_type_to<R: TypeResolver>(
+                &self,
+                type_id: &R::TypeId,
+                types: &R,
+                out: &mut Vec<u8>,
+            ) -> Result<(), Error> {
                 encode_iterable_sequence_to(self.len(), self.iter(), type_id, types, out)
             }
         }
@@ -387,39 +411,41 @@ impl_encode_seq_via_iterator!(VecDeque[V]);
 impl_encode_seq_via_iterator!(Vec[V]);
 
 impl<K: AsRef<str>, V: EncodeAsType> EncodeAsType for BTreeMap<K, V> {
-    fn encode_as_type_to(
+    fn encode_as_type_to<R: TypeResolver>(
         &self,
-        type_id: u32,
-        types: &PortableRegistry,
+        type_id: &R::TypeId,
+        types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
-        let ty = types
-            .resolve(type_id)
-            .ok_or_else(|| Error::new(ErrorKind::TypeNotFound(type_id)))?;
-
-        if matches!(ty.type_def, TypeDef::Array(_) | TypeDef::Sequence(_)) {
-            encode_iterable_sequence_to(self.len(), self.values(), type_id, types, out)
-        } else {
-            Composite(
+        let v = visitor::new(out, |out, _| {
+            Composite::new(
                 self.iter()
-                    .map(|(k, v)| (Some(k.as_ref()), v as &dyn EncodeAsType)),
+                    .map(|(k, v)| (Some(k.as_ref()), CompositeField::new(v))),
             )
-            .encode_as_type_to(type_id, types, out)
-        }
+            .encode_composite_as_type_to(type_id, types, out)
+        })
+        .visit_array(|out, _, _| {
+            encode_iterable_sequence_to(self.len(), self.values(), type_id, types, out)
+        })
+        .visit_sequence(|out, _| {
+            encode_iterable_sequence_to(self.len(), self.values(), type_id, types, out)
+        });
+
+        resolve_type_and_encode(types, type_id, v)
     }
 }
 impl<K: AsRef<str>, V: EncodeAsType> EncodeAsFields for BTreeMap<K, V> {
-    fn encode_as_fields_to(
+    fn encode_as_fields_to<R: TypeResolver>(
         &self,
-        fields: &mut dyn FieldIter<'_>,
-        types: &PortableRegistry,
+        fields: &mut dyn FieldIter<'_, R::TypeId>,
+        types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
-        Composite(
+        Composite::new(
             self.iter()
-                .map(|(k, v)| (Some(k.as_ref()), v as &dyn EncodeAsType)),
+                .map(|(k, v)| (Some(k.as_ref()), CompositeField::new(v))),
         )
-        .encode_as_fields_to(fields, types, out)
+        .encode_composite_fields_to(fields, types, out)
     }
 }
 
@@ -428,7 +454,12 @@ impl<K: AsRef<str>, V: EncodeAsType> EncodeAsFields for BTreeMap<K, V> {
 macro_rules! impl_encode_like {
     ($ty:ident $(<$( $param:ident ),+>)? as $delegate_ty:ty where |$val:ident| $expr:expr) => {
         impl $(< $($param: EncodeAsType),+ >)? EncodeAsType for $ty $(<$( $param ),+>)? {
-            fn encode_as_type_to(&self, type_id: u32, types: &PortableRegistry, out: &mut Vec<u8>) -> Result<(), Error> {
+            fn encode_as_type_to<R: TypeResolver>(
+                &self,
+                type_id: &R::TypeId,
+                types: &R,
+                out: &mut Vec<u8>,
+            ) -> Result<(), Error> {
                 let delegate: $delegate_ty = {
                     let $val = self;
                     $expr
@@ -461,75 +492,93 @@ impl_encode_like!(Compact<T> as &T where |val| &val.0);
 // Attempt to recurse into some type, returning the innermost type found that has an identical
 // SCALE encoded representation to the given type. For instance, `(T,)` encodes identically to
 // `T`, as does `Mytype { inner: T }` or `[T; 1]`.
-fn find_single_entry_with_same_repr(type_id: u32, types: &PortableRegistry) -> u32 {
-    let Some(ty) = types.resolve(type_id) else {
-        return type_id
-    };
-    match &ty.type_def {
-        TypeDef::Tuple(tuple) if tuple.fields.len() == 1 => {
-            find_single_entry_with_same_repr(tuple.fields[0].id, types)
-        }
-        TypeDef::Composite(composite) if composite.fields.len() == 1 => {
-            find_single_entry_with_same_repr(composite.fields[0].ty.id, types)
-        }
-        _ => type_id,
-    }
+fn find_single_entry_with_same_repr<'a, R: TypeResolver>(
+    type_id: &'a R::TypeId,
+    types: &'a R,
+) -> &'a R::TypeId {
+    let v = visitor::new((), |_, _| type_id)
+        .visit_tuple(|_, fields| {
+            let Some(new_type_id) = fields.next() else {
+                return type_id;
+            };
+            if fields.next().is_some() {
+                return type_id;
+            }
+            find_single_entry_with_same_repr(new_type_id, types)
+        })
+        .visit_composite(|_, fields| {
+            let Some(field) = fields.next() else {
+                return type_id;
+            };
+            if fields.next().is_some() {
+                return type_id;
+            }
+            find_single_entry_with_same_repr(field.id, types)
+        });
+
+    types.resolve_type(type_id, v).unwrap_or(type_id)
 }
 
 // Encode some iterator of items to the type provided.
-fn encode_iterable_sequence_to<I>(
+fn encode_iterable_sequence_to<I, R>(
     len: usize,
     it: I,
-    type_id: u32,
-    types: &PortableRegistry,
+    type_id: &R::TypeId,
+    types: &R,
     out: &mut Vec<u8>,
 ) -> Result<(), Error>
 where
     I: Iterator,
     I::Item: EncodeAsType,
+    R: TypeResolver,
 {
-    let ty = types
-        .resolve(type_id)
-        .ok_or_else(|| Error::new(ErrorKind::TypeNotFound(type_id)))?;
+    let wrong_shape_err = || {
+        Error::new(ErrorKind::WrongShape {
+            actual: Kind::Array,
+            expected_id: format!("{type_id:?}"),
+        })
+    };
 
-    match &ty.type_def {
-        TypeDef::Array(arr) => {
-            if arr.len == len as u32 {
+    let v = visitor::new((it, out), |_, _| Err(wrong_shape_err()))
+        .visit_array(|(it, out), inner_ty_id, array_len| {
+            if array_len == len {
                 for (idx, item) in it.enumerate() {
-                    item.encode_as_type_to(arr.type_param.id, types, out)
+                    item.encode_as_type_to(inner_ty_id, types, out)
                         .map_err(|e| e.at_idx(idx))?;
                 }
                 Ok(())
             } else {
                 Err(Error::new(ErrorKind::WrongLength {
                     actual_len: len,
-                    expected_len: arr.len as usize,
+                    expected_len: array_len,
                 }))
             }
-        }
-        TypeDef::Sequence(seq) => {
+        })
+        .visit_sequence(|(it, out), inner_ty_id| {
             // Sequences are prefixed with their compact encoded length:
             Compact(len as u32).encode_to(out);
             for (idx, item) in it.enumerate() {
-                item.encode_as_type_to(seq.type_param.id, types, out)
+                item.encode_as_type_to(inner_ty_id, types, out)
                     .map_err(|e| e.at_idx(idx))?;
             }
             Ok(())
-        }
-        // if the target type is a basic newtype wrapper, then dig into that and try encoding to
-        // the thing inside it. This is fairly common, and allowing this means that users don't have
-        // to wrap things needlessly just to make types line up.
-        TypeDef::Tuple(tup) if tup.fields.len() == 1 => {
-            encode_iterable_sequence_to(len, it, tup.fields[0].id, types, out)
-        }
-        TypeDef::Composite(com) if com.fields.len() == 1 => {
-            encode_iterable_sequence_to(len, it, com.fields[0].ty.id, types, out)
-        }
-        _ => Err(Error::new(ErrorKind::WrongShape {
-            actual: Kind::Array,
-            expected: type_id,
-        })),
-    }
+        })
+        .visit_tuple(|(it, out), inner_type_ids| {
+            if inner_type_ids.len() == 1 {
+                encode_iterable_sequence_to(len, it, inner_type_ids.next().unwrap(), types, out)
+            } else {
+                Err(wrong_shape_err())
+            }
+        })
+        .visit_composite(|(it, out), fields| {
+            if fields.len() == 1 {
+                encode_iterable_sequence_to(len, it, fields.next().unwrap().id, types, out)
+            } else {
+                Err(wrong_shape_err())
+            }
+        });
+
+    resolve_type_and_encode(types, type_id, v)
 }
 
 #[cfg(all(feature = "derive", feature = "bits", feature = "primitive-types"))]
@@ -540,7 +589,7 @@ mod test {
     use alloc::vec;
     use codec::Decode;
     use core::fmt::Debug;
-    use scale_info::TypeInfo;
+    use scale_info::{PortableRegistry, TypeInfo};
 
     /// Given a type definition, return type ID and registry representing it.
     fn make_type<T: TypeInfo + 'static>() -> (u32, PortableRegistry) {
@@ -554,7 +603,7 @@ mod test {
 
     fn encode_type<V: EncodeAsType, T: TypeInfo + 'static>(value: V) -> Result<Vec<u8>, Error> {
         let (type_id, types) = make_type::<T>();
-        let bytes = value.encode_as_type(type_id, &types)?;
+        let bytes = value.encode_as_type(&type_id, &types)?;
         Ok(bytes)
     }
 
@@ -603,11 +652,11 @@ mod test {
                 let mut fields = c
                     .fields
                     .iter()
-                    .map(|f| Field::new(f.ty.id, f.name.as_deref()));
+                    .map(|f| Field::new(&f.ty.id, f.name.as_deref()));
                 value.encode_as_fields(&mut fields, &types).unwrap()
             }
             scale_info::TypeDef::Tuple(t) => {
-                let mut fields = t.fields.iter().map(|f| Field::unnamed(f.id));
+                let mut fields = t.fields.iter().map(|f| Field::unnamed(&f.id));
                 value.encode_as_fields(&mut fields, &types).unwrap()
             }
             _ => {
@@ -682,7 +731,7 @@ mod test {
         let (type_id, types) = make_type::<Vec<u8>>();
         let e = vec![1u8, 2, 3].encode();
         let e2 = vec![1u8, 2, 3]
-            .encode_as_type(type_id, &types)
+            .encode_as_type(&type_id, &types)
             .expect("can encode 2");
         assert_eq!(e, e2);
     }
@@ -739,26 +788,16 @@ mod test {
         #[derive(Debug, scale_info::TypeInfo, codec::Decode, PartialEq)]
         struct Foo {
             a: u8,
-            b: (bool,),
-            c: String,
+            b: u16,
+            c: u32,
         }
 
-        let v = BTreeMap::from([
-            ("a", &1u8 as &dyn EncodeAsType),
-            ("c", &"hello" as &dyn EncodeAsType),
-            ("b", &true as &dyn EncodeAsType),
-        ]);
+        let v = BTreeMap::from([("a", 1), ("c", 2), ("b", 3)]);
 
         // BTreeMap can go to a key-val composite, or unnamed:
-        assert_value_roundtrips_to(
-            v.clone(),
-            Foo {
-                a: 1,
-                b: (true,),
-                c: "hello".to_string(),
-            },
-        );
-        assert_value_roundtrips_to(v, (1, true, "hello".to_string()));
+        assert_value_roundtrips_to(v.clone(), Foo { a: 1, b: 3, c: 2 });
+        // BTreeMaps are iterated in order of key:
+        assert_value_roundtrips_to(v, (1, 3, 2));
     }
 
     #[test]
@@ -841,12 +880,17 @@ mod test {
         }
 
         // note: fields do not need to be in order when named:
-        let vals = [
-            (Some("hello"), &("world".to_string()) as &dyn EncodeAsType),
-            (Some("bar"), &12345u128 as &dyn EncodeAsType),
-            (Some("wibble"), &true as &dyn EncodeAsType),
+        let source_vals = [
+            (Some("hello"), CompositeField::new(&"world")),
+            (Some("bar"), CompositeField::new(&12345u128)),
+            (Some("wibble"), CompositeField::new(&true)),
         ];
-        let source = Composite(vals.iter().copied());
+        let source = Composite::new(source_vals.iter().copied());
+
+        // Composite can't implement `EncodeAsType` and so need "manually" encoding:
+        let (type_id, types) = make_type::<Foo>();
+        let bytes = source.encode_composite_as_type(&type_id, &types).unwrap();
+        let cursor = &mut &*bytes;
 
         let target = Foo {
             bar: 12345,
@@ -854,33 +898,45 @@ mod test {
             hello: "world".to_string(),
         };
 
-        assert_value_roundtrips_to(source, target);
+        let new_target = Foo::decode(cursor).unwrap();
+
+        assert_eq!(target, new_target);
+        assert_eq!(cursor.len(), 0);
     }
 
     #[test]
     fn tuple_composite_can_encode_to_unnamed_structs() {
         #[derive(Debug, scale_info::TypeInfo, codec::Decode, PartialEq, Clone)]
         struct Foo(u32, bool, String);
+        let (type_id, types) = make_type::<Foo>();
 
         // note: unnamed target so fields need to be in order (can be named or not)
-        let named_vals = [
-            (Some("bar"), &12345u128 as &dyn EncodeAsType),
-            (Some("wibble"), &true as &dyn EncodeAsType),
-            (Some("hello"), &"world".to_string() as &dyn EncodeAsType),
+        let source_vals = [
+            (Some("bar"), CompositeField::new(&12345u128)),
+            (Some("wibble"), CompositeField::new(&true)),
+            (Some("hello"), CompositeField::new(&"world")),
         ];
-        let source = Composite(named_vals.iter().copied());
+        let source = Composite::new(source_vals.iter().copied());
+        let source_bytes = source.encode_composite_as_type(&type_id, &types).unwrap();
+        let source_cursor = &mut &*source_bytes;
 
-        let unnamed_vals = [
-            (None, &12345u128 as &dyn EncodeAsType),
-            (None, &true as &dyn EncodeAsType),
-            (None, &"world".to_string() as &dyn EncodeAsType),
+        let source2_vals = [
+            (None, CompositeField::new(&12345u128)),
+            (None, CompositeField::new(&true)),
+            (None, CompositeField::new(&"world")),
         ];
-        let source2 = Composite(unnamed_vals.iter().copied());
+        let source2 = Composite::new(source2_vals.iter().copied());
+        let source2_bytes = source2.encode_composite_as_type(&type_id, &types).unwrap();
+        let source2_cursor = &mut &*source2_bytes;
 
         let target = Foo(12345, true, "world".to_string());
+        let new_target = Foo::decode(source_cursor).unwrap();
+        let new_target2 = Foo::decode(source2_cursor).unwrap();
 
-        assert_value_roundtrips_to(source, target.clone());
-        assert_value_roundtrips_to(source2, target);
+        assert_eq!(target, new_target);
+        assert_eq!(target, new_target2);
+        assert_eq!(source_cursor.len(), 0);
+        assert_eq!(source2_cursor.len(), 0);
     }
 
     #[test]
@@ -893,15 +949,18 @@ mod test {
         }
 
         // note: fields do not need to be in order when named:
-        let vals = [
-            (Some("hello"), &"world".to_string() as &dyn EncodeAsType),
-            (Some("bar"), &12345u128 as &dyn EncodeAsType),
+        let source_vals = [
+            (Some("hello"), CompositeField::new(&"world")),
+            (Some("bar"), CompositeField::new(&12345u128)),
             // wrong name:
-            (Some("wibbles"), &true as &dyn EncodeAsType),
+            (Some("wibbles"), CompositeField::new(&true)),
         ];
-        let source = Composite(vals.iter().copied());
+        let source = Composite::new(source_vals.iter().copied());
 
-        encode_type::<_, Foo>(source).unwrap_err();
+        let (type_id, types) = make_type::<Foo>();
+        let _bytes = source
+            .encode_composite_as_type(&type_id, &types)
+            .unwrap_err();
     }
 
     #[test]
@@ -1006,19 +1065,19 @@ mod test {
         #[derive(TypeInfo, Encode)]
         struct Foo {
             some_field: u64,
-            another: bool,
+            another: u8,
         }
 
         assert_encodes_fields_like_type(
             BTreeMap::from([
-                ("other1", &123u64 as &dyn EncodeAsType),
-                ("another", &true as &dyn EncodeAsType),
-                ("some_field", &123u64 as &dyn EncodeAsType),
-                ("other2", &123u64 as &dyn EncodeAsType),
+                ("other1", 1),
+                ("another", 2),
+                ("some_field", 3),
+                ("other2", 4),
             ]),
             Foo {
-                some_field: 123,
-                another: true,
+                some_field: 3,
+                another: 2,
             },
         )
     }
