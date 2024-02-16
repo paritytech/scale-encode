@@ -146,8 +146,8 @@ where
         }
     }
 
-    /// A shortcut for [`Self::encode_composite_as_type_to()`] for when you just
-    /// want it to allocate and return the encoded bytes.
+    /// A shortcut for [`Self::encode_composite_as_type_to()`] which internally
+    /// allocates a [`Vec`] and returns it.
     pub fn encode_composite_as_type(
         &self,
         type_id: &R::TypeId,
@@ -178,7 +178,7 @@ where
             if vals_iter_len == 1 {
                 return vals_iter
                     .next()
-                    .unwrap()
+                    .expect("1 value expected")
                     .1
                     .encode_composite_field_to(type_id, types, out);
             }
@@ -202,7 +202,7 @@ where
             if !is_named_vals && vals_iter_len == 1 {
                 return vals_iter
                     .next()
-                    .unwrap()
+                    .expect("1 value expected")
                     .1
                     .encode_composite_field_to(type_id, types, out);
             }
@@ -231,8 +231,8 @@ where
         super::resolve_type_and_encode(types, type_id, v)
     }
 
-    /// A shortcut for [`Self::encode_composite_fields_to()`] for when you just
-    /// want it to allocate and return the encoded bytes.
+    /// A shortcut for [`Self::encode_composite_fields_to()`] which internally
+    /// allocates a [`Vec`] and returns it.
     pub fn encode_composite_fields(
         &self,
         fields: &mut dyn FieldIter<'_, R::TypeId>,

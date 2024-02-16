@@ -70,8 +70,8 @@ where
     R: TypeResolver + 'a,
     Vals: ExactSizeIterator<Item = (Option<&'a str>, CompositeField<'a, R>)> + Clone,
 {
-    /// A shortcut for [`Self::encode_variant_as_type_to()`] for when you just
-    /// want it to allocate and return the encoded bytes.
+    /// A shortcut for [`Self::encode_variant_as_type_to()`] which internally
+    /// allocates a [`Vec`] and returns it.
     pub fn encode_variant_as_type(&self, type_id: &R::TypeId, types: &R) -> Result<Vec<u8>, Error> {
         let mut out = Vec::new();
         self.encode_variant_as_type_to(type_id, types, &mut out)?;

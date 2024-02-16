@@ -805,16 +805,16 @@ mod test {
         assert_encodes_like_codec(());
         assert_encodes_like_codec((12345,));
         assert_encodes_like_codec((123u8, true));
-        // assert_encodes_like_codec((123u8, true, "hello"));
-        // // Encode isn't implemented for `char` (but we treat it as a u32):
-        // assert_encodes_like_codec((123u8, true, "hello".to_string(), 'a' as u32));
-        // assert_encodes_like_codec((
-        //     123u8,
-        //     true,
-        //     "hello".to_string(),
-        //     'a' as u32,
-        //     123_000_000_000u128,
-        // ));
+        assert_encodes_like_codec((123u8, true, "hello"));
+        // Encode isn't implemented for `char` (but we treat it as a u32):
+        assert_encodes_like_codec((123u8, true, "hello".to_string(), 'a' as u32));
+        assert_encodes_like_codec((
+            123u8,
+            true,
+            "hello".to_string(),
+            'a' as u32,
+            123_000_000_000u128,
+        ));
     }
 
     #[test]
