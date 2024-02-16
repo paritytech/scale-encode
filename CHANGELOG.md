@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog].
 
 ## [v0.6.0] - 2024-02-16
 
-Up until now, `scale-info` has been the library that gives us the information needed to know how to SCALE encode values to the correct shape. In this release, we remove it from our dependency tree and replace it with `scale-type-resolver`, which provides a generic `TypeResolver` trait whose implementations are able to provide the information needed to encode/decode types. So now, rather than taking in a `scale_info::PortableRegistry`, the `EncodeAsType` and `EncodeAsFields` traits take a generic `R: scale_type_resolver::TypeResolver` value. `scale_info::PortableRegistry` implements `TypeResolver`, and so it can continue to be used similarly to before, but now we can also provide other implementations too, making us generic over where the type information we need comes from.
+Up until now, `scale-info` has been the library that gives us the information needed to know how to SCALE encode values to the correct shape. In this release, we remove it from our dependency tree and replace it with `scale-type-resolver`, which provides a generic `TypeResolver` trait whose implementations are able to provide the information needed to encode/decode types. So now, rather than taking in a `scale_info::PortableRegistry`, the `EncodeAsType` and `EncodeAsFields` traits take a generic `R: scale_type_resolver::TypeResolver` value. `scale_info::PortableRegistry` implements `TypeResolver`, and so it can continue to be used similarly to before (though now, `type_id` is passed as a reference), but now we are generic over where the type information we need comes from.
 
 To be more concrete, `EncodeAsType` used to look roughly like this:
 
@@ -34,7 +34,7 @@ pub trait EncodeAsType {
 }
 ```
 
-One effect that this has is that `EncodeAsType` and `EncodeAsFields` are no longer object safe (since the method they expose accepts a generic type now). Internally this led us to also change how `scale_encode::Composite` works slightly (see the docs for that for more information). if you need object safety, and know the type resolver that you want to use, then you can make a trait/impl like this which is object safe and implemented for anything which implements `EncodeAsType`:
+One effect that this has is that `EncodeAsType` and `EncodeAsFields` are no longer object safe (since the method they expose accepts a generic type now). Internally this led us to also change how `scale_encode::Composite` works slightly (see the docs for that for more information). if you need object safety, and know the type resolver that you want to use, then you can make a trait + blanket impl like this which _is_ object safe and is implemented for anything which implements `EncodeAsType`:
 
 ```rust
 trait EncodeAsTypeWithResolver<R: TypeResolver> {
@@ -57,7 +57,7 @@ impl<T: EncodeAsType, R: TypeResolver> EncodeAsTypeWithResolver<R> for T {
 }
 ```
 
-We can now have `&dyn EncodeAsTypeWithResolver<SomeResolver>` instances.
+We can now have `&dyn EncodeAsTypeWithResolver<SomeConcreteResolver>` instances.
 
 The full PR is here:
 
