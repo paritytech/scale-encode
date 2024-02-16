@@ -4,6 +4,65 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## [v0.6.0] - 2024-02-16
+
+Up until now, `scale-info` has been the library that gives us the information needed to know how to SCALE encode values to the correct shape. In this release, we remove it from our dependency tree and replace it with `scale-type-resolver`, which provides a generic `TypeResolver` trait whose implementations are able to provide the information needed to encode/decode types. So now, rather than taking in a `scale_info::PortableRegistry`, the `EncodeAsType` and `EncodeAsFields` traits take a generic `R: scale_type_resolver::TypeResolver` value. `scale_info::PortableRegistry` implements `TypeResolver`, and so it can continue to be used similarly to before (though now, `type_id` is passed as a reference), but now we are generic over where the type information we need comes from.
+
+To be more concrete, `EncodeAsType` used to look roughly like this:
+
+```rust
+pub trait EncodeAsType {
+    fn encode_as_type_to(
+        &self,
+        type_id: u32,
+        types: scale_info::PortableRegistry,
+        out: &mut Vec<u8>,
+    ) -> Result<(), Error>;
+}
+```
+
+And now it looks like this:
+
+```rust
+pub trait EncodeAsType {
+    fn encode_as_type_to<R: TypeResolver>(
+        &self,
+        type_id: &R::TypeId,
+        types: &R,
+        out: &mut Vec<u8>,
+    ) -> Result<(), Error>;
+}
+```
+
+One effect that this has is that `EncodeAsType` and `EncodeAsFields` are no longer object safe (since the method they expose accepts a generic type now). Internally this led us to also change how `scale_encode::Composite` works slightly (see the docs for that for more information). if you need object safety, and know the type resolver that you want to use, then you can make a trait + blanket impl like this which _is_ object safe and is implemented for anything which implements `EncodeAsType`:
+
+```rust
+trait EncodeAsTypeWithResolver<R: TypeResolver> {
+    fn encode_as_type_with_resolver_to(
+        &self,
+        type_id: &R::TypeId,
+        types: &R,
+        out: &mut Vec<u8>,
+    ) -> Result<(), Error>;
+}
+impl<T: EncodeAsType, R: TypeResolver> EncodeAsTypeWithResolver<R> for T {
+    fn encode_as_type_with_resolver_to(
+        &self,
+        type_id: &R::TypeId,
+        types: &R,
+        out: &mut Vec<u8>,
+    ) -> Result<(), Error> {
+        self.encode_as_type_to(type_id, types, out)
+    }
+}
+```
+
+We can now have `&dyn EncodeAsTypeWithResolver<SomeConcreteResolver>` instances.
+
+The full PR is here:
+
+- Enable generic type encoding via TypeResolver and remove dependency on scale-info ([#19](https://github.com/paritytech/scale-encode/pull/19)).
+
 ## [v0.5.0] - 2023-08-02
 
 - Improve custom error handling: custom errors now require `Debug + Display` on `no_std` or `Error` on `std`.
