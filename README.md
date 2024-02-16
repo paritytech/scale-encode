@@ -1,17 +1,17 @@
 # scale-encode
 
 `parity-scale-codec` provides an `Encode` trait which allows types to SCALE encode themselves based on their shape.
-This crate builds on this, and allows types to encode themselves based on type information from a [`TypeResolver`]
+This crate builds on this, and allows types to encode themselves based on type information from a `TypeResolver`
 implementation (one such implementation being a `scale_info::PortableRegistry`). It exposes two traits:
 
-- An [`EncodeAsType`] trait which when implemented on some type, describes how it can be SCALE encoded
+- An `EncodeAsType` trait which when implemented on some type, describes how it can be SCALE encoded
   with the help of a type ID and type registry describing the expected shape of the encoded bytes.
-- An [`EncodeAsFields`] trait which when implemented on some type, describes how it can be SCALE encoded
-  with the help of an iterator over [`Field`]s and a type registry describing the expected shape of the
+- An `EncodeAsFields` trait which when implemented on some type, describes how it can be SCALE encoded
+  with the help of an iterator over `Field`s and a type registry describing the expected shape of the
   encoded bytes. This is generally only implemented for tuples and structs, since we need a set of fields
   to map to the provided iterator.
 
-Implementations for many built-in types are also provided for each trait, and the [`macro@EncodeAsType`]
+Implementations for many built-in types are also provided for each trait, and the `EncodeAsType`
 macro makes it easy to generate implementations for new structs and enums.
 
 # Motivation
