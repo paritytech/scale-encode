@@ -82,7 +82,7 @@ fn generate_enum_impl(
             fn encode_as_type_to<ScaleEncodeResolver: #path_to_scale_encode::TypeResolver>(
                 &self,
                 // long variable names to prevent conflict with struct field names:
-                __encode_as_type_type_id: &ScaleEncodeResolver::TypeId,
+                __encode_as_type_type_id: ScaleEncodeResolver::TypeId,
                 __encode_as_type_types: &ScaleEncodeResolver,
                 __encode_as_type_out: &mut #path_to_scale_encode::Vec<u8>
             ) -> Result<(), #path_to_scale_encode::Error> {
@@ -115,7 +115,7 @@ fn generate_struct_impl(
             fn encode_as_type_to<ScaleEncodeResolver: #path_to_scale_encode::TypeResolver>(
                 &self,
                 // long variable names to prevent conflict with struct field names:
-                __encode_as_type_type_id: &ScaleEncodeResolver::TypeId,
+                __encode_as_type_type_id: ScaleEncodeResolver::TypeId,
                 __encode_as_type_types: &ScaleEncodeResolver,
                 __encode_as_type_out: &mut #path_to_scale_encode::Vec<u8>
             ) -> Result<(), #path_to_scale_encode::Error> {

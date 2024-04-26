@@ -36,7 +36,7 @@ use scale_type_resolver::{visitor, TypeResolver};
 /// impl EncodeAsType for MyType {
 ///     fn encode_as_type_to<R: TypeResolver>(
 ///         &self,
-///         type_id: &R::TypeId,
+///         type_id: R::TypeId,
 ///         types: &R,
 ///         out: &mut Vec<u8>
 ///     ) -> Result<(), Error> {
@@ -72,7 +72,7 @@ where
 {
     /// A shortcut for [`Self::encode_variant_as_type_to()`] which internally
     /// allocates a [`Vec`] and returns it.
-    pub fn encode_variant_as_type(&self, type_id: &R::TypeId, types: &R) -> Result<Vec<u8>, Error> {
+    pub fn encode_variant_as_type(&self, type_id: R::TypeId, types: &R) -> Result<Vec<u8>, Error> {
         let mut out = Vec::new();
         self.encode_variant_as_type_to(type_id, types, &mut out)?;
         Ok(out)
@@ -81,19 +81,19 @@ where
     /// Encode the variant as the provided type to the output bytes.
     pub fn encode_variant_as_type_to(
         &self,
-        type_id: &R::TypeId,
+        type_id: R::TypeId,
         types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
         let type_id = super::find_single_entry_with_same_repr(type_id, types);
 
-        let v = visitor::new((), |_, _| {
+        let v = visitor::new(type_id.clone(), |type_id, _| {
             Err(Error::new(ErrorKind::WrongShape {
                 actual: Kind::Str,
                 expected_id: format!("{type_id:?}"),
             }))
         })
-        .visit_variant(|_, vars| {
+        .visit_variant(|type_id, _, vars| {
             let mut res = None;
             for var in vars {
                 if var.name == self.name {

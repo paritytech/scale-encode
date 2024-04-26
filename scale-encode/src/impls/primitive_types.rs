@@ -23,7 +23,7 @@ macro_rules! impl_encode {
         impl EncodeAsType for $ty {
             fn encode_as_type_to<R: TypeResolver>(
                 &self,
-                type_id: &R::TypeId,
+                type_id: R::TypeId,
                 types: &R,
                 out: &mut Vec<u8>,
             ) -> Result<(), Error> {
