@@ -323,10 +323,7 @@ where
 
 // Single unnamed fields carry no useful information and can be skipped through.
 // Single named fields may still be useful to line up with named composites.
-fn skip_through_single_unnamed_fields<'a, R: TypeResolver>(
-    type_id: R::TypeId,
-    types: &'a R,
-) -> R::TypeId {
+fn skip_through_single_unnamed_fields<R: TypeResolver>(type_id: R::TypeId, types: &R) -> R::TypeId {
     let v = visitor::new(type_id.clone(), |type_id, _| type_id)
         .visit_composite(|type_id, _, fields| {
             // If exactly 1 unnamed field, recurse into it, else return current type ID.

@@ -496,10 +496,7 @@ impl_encode_like!(Compact<T> as &T where |val| &val.0);
 // Attempt to recurse into some type, returning the innermost type found that has an identical
 // SCALE encoded representation to the given type. For instance, `(T,)` encodes identically to
 // `T`, as does `Mytype { inner: T }` or `[T; 1]`.
-fn find_single_entry_with_same_repr<'a, R: TypeResolver>(
-    type_id: R::TypeId,
-    types: &'a R,
-) -> R::TypeId {
+fn find_single_entry_with_same_repr<R: TypeResolver>(type_id: R::TypeId, types: &R) -> R::TypeId {
     let v = visitor::new(type_id.clone(), |type_id, _| type_id)
         .visit_tuple(|type_id, fields| {
             let Some(new_type_id) = fields.next() else {
