@@ -4,6 +4,12 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## [v0.7.0] - 2024-04-29
+
+Update the `scale-type-resolver` dependency to 0.2.0 (and bump `scale-bits` for the same reason).
+
+The main change here is that type IDs are now passed by value, rather than reference.
+
 ## [v0.6.0] - 2024-02-16
 
 Up until now, `scale-info` has been the library that gives us the information needed to know how to SCALE encode values to the correct shape. In this release, we remove it from our dependency tree and replace it with `scale-type-resolver`, which provides a generic `TypeResolver` trait whose implementations are able to provide the information needed to encode/decode types. So now, rather than taking in a `scale_info::PortableRegistry`, the `EncodeAsType` and `EncodeAsFields` traits take a generic `R: scale_type_resolver::TypeResolver` value. `scale_info::PortableRegistry` implements `TypeResolver`, and so it can continue to be used similarly to before (though now, `type_id` is passed as a reference), but now we are generic over where the type information we need comes from.
