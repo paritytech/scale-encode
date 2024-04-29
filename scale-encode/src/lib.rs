@@ -59,7 +59,7 @@ where
     B: TypeInfo + Encode + 'static,
 {
     let (type_id, types) = get_type_info::<B>();
-    let a_bytes = a.encode_as_type(&type_id, &types).unwrap();
+    let a_bytes = a.encode_as_type(type_id, &types).unwrap();
     let b_bytes = b.encode();
     assert_eq!(a_bytes, b_bytes);
 }
@@ -170,7 +170,7 @@ pub trait EncodeAsType {
     /// attempt to SCALE encode the current value into the type given by `type_id`.
     fn encode_as_type_to<R: TypeResolver>(
         &self,
-        type_id: &R::TypeId,
+        type_id: R::TypeId,
         types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error>;
@@ -179,7 +179,7 @@ pub trait EncodeAsType {
     /// implement that instead.
     fn encode_as_type<R: TypeResolver>(
         &self,
-        type_id: &R::TypeId,
+        type_id: R::TypeId,
         types: &R,
     ) -> Result<Vec<u8>, Error> {
         let mut out = Vec::new();

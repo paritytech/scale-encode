@@ -27,7 +27,7 @@ use scale_type_resolver::visitor;
 trait EncodeAsTypeWithResolver<R: TypeResolver> {
     fn encode_as_type_with_resolver_to(
         &self,
-        type_id: &R::TypeId,
+        type_id: R::TypeId,
         types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error>;
@@ -35,7 +35,7 @@ trait EncodeAsTypeWithResolver<R: TypeResolver> {
 impl<T: EncodeAsType, R: TypeResolver> EncodeAsTypeWithResolver<R> for T {
     fn encode_as_type_with_resolver_to(
         &self,
-        type_id: &R::TypeId,
+        type_id: R::TypeId,
         types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
@@ -73,7 +73,7 @@ impl<'a, R: TypeResolver> CompositeField<'a, R> {
     /// SCALE encode this composite field to bytes based on the underlying type.
     pub fn encode_composite_field_to(
         &self,
-        type_id: &R::TypeId,
+        type_id: R::TypeId,
         types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
@@ -99,7 +99,7 @@ impl<'a, R: TypeResolver> CompositeField<'a, R> {
 /// impl EncodeAsType for MyType {
 ///     fn encode_as_type_to<R: TypeResolver>(
 ///         &self,
-///         type_id: &R::TypeId,
+///         type_id: R::TypeId,
 ///         types: &R,
 ///         out: &mut Vec<u8>
 ///     ) -> Result<(), Error> {
@@ -150,7 +150,7 @@ where
     /// allocates a [`Vec`] and returns it.
     pub fn encode_composite_as_type(
         &self,
-        type_id: &R::TypeId,
+        type_id: R::TypeId,
         types: &R,
     ) -> Result<Vec<u8>, Error> {
         let mut out = Vec::new();
@@ -161,7 +161,7 @@ where
     /// Encode this composite value as the provided type to the output bytes.
     pub fn encode_composite_as_type_to(
         &self,
-        type_id: &R::TypeId,
+        type_id: R::TypeId,
         types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), Error> {
@@ -172,27 +172,32 @@ where
         // are names, we may want to line up input field(s) on them.
         let type_id = skip_through_single_unnamed_fields(type_id, types);
 
-        let v = visitor::new((out, vals_iter), |(out, mut vals_iter), _| {
-            // Rather than immediately giving up, we should at least see whether
-            // we can skip one level in to our value and encode that.
-            if vals_iter_len == 1 {
-                return vals_iter
-                    .next()
-                    .expect("1 value expected")
-                    .1
-                    .encode_composite_field_to(type_id, types, out);
-            }
+        let v = visitor::new(
+            (type_id.clone(), out, vals_iter),
+            |(type_id, out, mut vals_iter), _| {
+                // Rather than immediately giving up, we should at least see whether
+                // we can skip one level in to our value and encode that.
+                if vals_iter_len == 1 {
+                    return vals_iter
+                        .next()
+                        .expect("1 value expected")
+                        .1
+                        .encode_composite_field_to(type_id, types, out);
+                }
 
-            // If we get here, then it means the value we were given had more than
-            // one field, and the type we were given was ultimately some one-field thing
-            // that contained a non composite/tuple type, so it would never work out.
-            Err(Error::new(ErrorKind::WrongShape {
-                actual: Kind::Struct,
-                expected_id: format!("{type_id:?}"),
-            }))
+                // If we get here, then it means the value we were given had more than
+                // one field, and the type we were given was ultimately some one-field thing
+                // that contained a non composite/tuple type, so it would never work out.
+                Err(Error::new(ErrorKind::WrongShape {
+                    actual: Kind::Struct,
+                    expected_id: format!("{type_id:?}"),
+                }))
+            },
+        )
+        .visit_not_found(|(type_id, _, _)| {
+            Err(Error::new(ErrorKind::TypeNotFound(format!("{type_id:?}"))))
         })
-        .visit_not_found(|_| Err(Error::new(ErrorKind::TypeNotFound(format!("{type_id:?}")))))
-        .visit_composite(|(out, mut vals_iter), mut fields| {
+        .visit_composite(|(type_id, out, mut vals_iter), _, mut fields| {
             // If vals are named, we may need to line them up with some named composite.
             // If they aren't named, we only care about lining up based on matching lengths.
             let is_named_vals = vals_iter.clone().any(|(name, _)| name.is_some());
@@ -209,7 +214,7 @@ where
 
             self.encode_composite_fields_to(&mut fields, types, out)
         })
-        .visit_tuple(|(out, mut vals_iter), type_ids| {
+        .visit_tuple(|(type_id, out, mut vals_iter), type_ids| {
             // If there is exactly one val, it won't line up with the tuple then, so
             // try encoding one level in instead.
             if vals_iter_len == 1 {
@@ -301,7 +306,7 @@ where
             }
 
             for (idx, (field, (name, val))) in fields.iter().zip(vals_iter).enumerate() {
-                val.encode_composite_field_to(field.id, types, out)
+                val.encode_composite_field_to(field.id.clone(), types, out)
                     .map_err(|e| {
                         let loc = if let Some(name) = name {
                             Location::field(name.to_string())
@@ -318,12 +323,9 @@ where
 
 // Single unnamed fields carry no useful information and can be skipped through.
 // Single named fields may still be useful to line up with named composites.
-fn skip_through_single_unnamed_fields<'a, R: TypeResolver>(
-    type_id: &'a R::TypeId,
-    types: &'a R,
-) -> &'a R::TypeId {
-    let v = visitor::new((), |_, _| type_id)
-        .visit_composite(|_, fields| {
+fn skip_through_single_unnamed_fields<R: TypeResolver>(type_id: R::TypeId, types: &R) -> R::TypeId {
+    let v = visitor::new(type_id.clone(), |type_id, _| type_id)
+        .visit_composite(|type_id, _, fields| {
             // If exactly 1 unnamed field, recurse into it, else return current type ID.
             let Some(f) = fields.next() else {
                 return type_id;
@@ -333,7 +335,7 @@ fn skip_through_single_unnamed_fields<'a, R: TypeResolver>(
             };
             skip_through_single_unnamed_fields(f.id, types)
         })
-        .visit_tuple(|_, type_ids| {
+        .visit_tuple(|type_id, type_ids| {
             // Else if exactly 1 tuple entry, recurse into it, else return current type ID.
             let Some(new_type_id) = type_ids.next() else {
                 return type_id;
@@ -344,5 +346,5 @@ fn skip_through_single_unnamed_fields<'a, R: TypeResolver>(
             skip_through_single_unnamed_fields(new_type_id, types)
         });
 
-    types.resolve_type(type_id, v).unwrap_or(type_id)
+    types.resolve_type(type_id.clone(), v).unwrap_or(type_id)
 }

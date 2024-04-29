@@ -23,19 +23,20 @@ use scale_type_resolver::{visitor, TypeResolver};
 impl EncodeAsType for scale_bits::Bits {
     fn encode_as_type_to<R: TypeResolver>(
         &self,
-        type_id: &R::TypeId,
+        type_id: R::TypeId,
         types: &R,
         out: &mut Vec<u8>,
     ) -> Result<(), crate::Error> {
         let type_id = super::find_single_entry_with_same_repr(type_id, types);
 
-        let v = visitor::new(out, |_, _| Err(wrong_shape(type_id))).visit_bit_sequence(
-            |out, store, order| {
-                let format = scale_bits::Format { store, order };
-                scale_bits::encode_using_format_to(self.iter(), format, out);
-                Ok(())
-            },
-        );
+        let v = visitor::new((type_id.clone(), out), |(type_id, _out), _| {
+            Err(wrong_shape(type_id))
+        })
+        .visit_bit_sequence(|(_type_id, out), store, order| {
+            let format = scale_bits::Format { store, order };
+            scale_bits::encode_using_format_to(self.iter(), format, out);
+            Ok(())
+        });
 
         super::resolve_type_and_encode(types, type_id, v)
     }
