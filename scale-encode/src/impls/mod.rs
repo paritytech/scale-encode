@@ -493,6 +493,26 @@ impl_encode_like!(Range<T> as (&T, &T) where |val| (&val.start, &val.end));
 impl_encode_like!(RangeInclusive<T> as (&T, &T) where |val| ((val.start()), (val.end())));
 impl_encode_like!(Compact<T> as &T where |val| &val.0);
 
+// Generate EncodeAsField impls for common smart pointers containing
+// types we have impls for already.
+macro_rules! impl_encode_like_to_fields {
+    ($ty:ident $(<$( $param:ident ),+>)? as $delegate_ty:ty where |$val:ident| $expr:expr) => {
+        impl $(< $($param: EncodeAsFields),+ >)? EncodeAsFields for $ty $(<$( $param ),+>)? {
+            fn encode_as_fields_to<R: TypeResolver>(
+                &self,
+                fields: &mut dyn FieldIter<'_, R::TypeId>,
+                types: &R,
+                out: &mut Vec<u8>,
+            ) -> Result<(), Error> {
+                self.as_ref().encode_as_fields_to(fields, types, out)
+            }
+        }
+    }
+}
+impl_encode_like_to_fields!(Box<T> as &T where |val| val);
+impl_encode_like_to_fields!(Rc<T> as &T where |val| val);
+impl_encode_like_to_fields!(Arc<T> as &T where |val| val);
+
 // Attempt to recurse into some type, returning the innermost type found that has an identical
 // SCALE encoded representation to the given type. For instance, `(T,)` encodes identically to
 // `T`, as does `Mytype { inner: T }` or `[T; 1]`.
@@ -1146,6 +1166,7 @@ mod test {
     fn encode_to_number_skipping_attrs_via_macro_works() {
         struct NotEncodeAsType;
 
+        #[allow(dead_code)]
         #[derive(EncodeAsType)]
         #[encode_as_type(crate_path = "crate")]
         struct FooNotSkipping {
@@ -1213,6 +1234,67 @@ mod test {
                 third: "hello".to_string(),
             },
             123u64,
+        );
+    }
+
+    #[test]
+    fn encode_smart_pointers_as_fields() {
+        #[derive(TypeInfo, Encode, PartialEq, Debug, Decode)]
+        struct Foo {
+            some_field: u64,
+            another: u8,
+        }
+
+        let map = BTreeMap::from([
+            ("other1", 1),
+            ("another", 2),
+            ("some_field", 3),
+            ("other2", 4),
+        ]);
+        let a = Box::new(map.clone());
+        assert_encodes_fields_like_type(
+            a.clone(),
+            Foo {
+                some_field: 3,
+                another: 2,
+            },
+        );
+        assert_value_roundtrips_to(
+            &a,
+            Box::new(Foo {
+                some_field: 3,
+                another: 2,
+            }),
+        );
+        let b = Rc::new(map.clone());
+        assert_encodes_fields_like_type(
+            b.clone(),
+            Foo {
+                some_field: 3,
+                another: 2,
+            },
+        );
+        assert_value_roundtrips_to(
+            &b,
+            Rc::new(Foo {
+                some_field: 3,
+                another: 2,
+            }),
+        );
+        let c = Arc::new(map.clone());
+        assert_encodes_fields_like_type(
+            c.clone(),
+            Foo {
+                some_field: 3,
+                another: 2,
+            },
+        );
+        assert_value_roundtrips_to(
+            &c,
+            Arc::new(Foo {
+                some_field: 3,
+                another: 2,
+            }),
         );
     }
 }
