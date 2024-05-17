@@ -4,6 +4,11 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## [v0.7.1] - 2024-05-17
+
+- Implement EncodeAsFields for pointer types like Arc and Box([#22](https://github.com/paritytech/scale-encode/pull/22))
+
+
 ## [v0.7.0] - 2024-04-29
 
 Update the `scale-type-resolver` dependency to 0.2.0 (and bump `scale-bits` for the same reason).
