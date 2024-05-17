@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog].
 
 ## [v0.7.1] - 2024-05-17
 
-- Implement EncodeAsFields for pointer types like Arc and Box([#22](https://github.com/paritytech/scale-encode/pull/22))
+- Implement EncodeAsFields for pointer types like Arc and Box ([#22](https://github.com/paritytech/scale-encode/pull/22))
 
 
 ## [v0.7.0] - 2024-04-29
