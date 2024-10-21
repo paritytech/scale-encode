@@ -4,6 +4,11 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## [v0.8.0] - 2024-10-21
+
+- chore(deps): bump derive_more from 0.99 to 1.0 ([#26](https://github.com/paritytech/scale-encode/pull/26))
+- chore(deps): bump primitive-types from 0.12.0 to 0.13.1 ([#27](https://github.com/paritytech/scale-encode/pull/27))
+
 ## [v0.7.2] - 2024-10-21
 
 - Update dependencies `syn 2.0`, `darling 0.20` and `proc-macro-crate 3.1` ([#24](https://github.com/paritytech/scale-encode/pull/24))
