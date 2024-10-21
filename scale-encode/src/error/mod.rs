@@ -115,13 +115,13 @@ impl Display for Error {
 #[derive(Debug, derive_more::From, derive_more::Display)]
 pub enum ErrorKind {
     /// There was an error resolving the type via the given [`crate::TypeResolver`].
-    #[display(fmt = "Failed to resolve type: {_0}")]
+    #[display("Failed to resolve type: {_0}")]
     TypeResolvingError(String),
     /// Cannot find a given type.
-    #[display(fmt = "Cannot find type with identifier {_0}")]
+    #[display("Cannot find type with identifier {_0}")]
     TypeNotFound(String),
     /// Cannot encode the actual type given into the target type ID.
-    #[display(fmt = "Cannot encode {actual:?} into type with ID {expected_id}")]
+    #[display("Cannot encode {actual:?} into type with ID {expected_id}")]
     WrongShape {
         /// The actual kind we have to encode
         actual: Kind,
@@ -129,9 +129,7 @@ pub enum ErrorKind {
         expected_id: String,
     },
     /// The types line up, but the expected length of the target type is different from the length of the input value.
-    #[display(
-        fmt = "Cannot encode to type; expected length {expected_len} but got length {actual_len}"
-    )]
+    #[display("Cannot encode to type; expected length {expected_len} but got length {actual_len}")]
     WrongLength {
         /// Length we have
         actual_len: usize,
@@ -139,9 +137,7 @@ pub enum ErrorKind {
         expected_len: usize,
     },
     /// We cannot encode the number given into the target type; it's out of range.
-    #[display(
-        fmt = "Number {value} is out of range for target type with identifier {expected_id}"
-    )]
+    #[display("Number {value} is out of range for target type with identifier {expected_id}")]
     NumberOutOfRange {
         /// A string represenatation of the numeric value that was out of range.
         value: String,
@@ -149,7 +145,7 @@ pub enum ErrorKind {
         expected_id: String,
     },
     /// Cannot find a variant with a matching name on the target type.
-    #[display(fmt = "Variant {name} does not exist on type with identifier {expected_id}")]
+    #[display("Variant {name} does not exist on type with identifier {expected_id}")]
     CannotFindVariant {
         /// Variant name we can't find in the expected type.
         name: String,
@@ -157,14 +153,14 @@ pub enum ErrorKind {
         expected_id: String,
     },
     /// Cannot find a field on our source type that's needed for the target type.
-    #[display(fmt = "Field {name} does not exist in our source struct")]
+    #[display("Field {name} does not exist in our source struct")]
     CannotFindField {
         /// Name of the field which was not provided.
         name: String,
     },
     /// A custom error.
     #[from]
-    #[display(fmt = "Custom error: {_0}")]
+    #[display("Custom error: {_0}")]
     Custom(Box<dyn CustomError>),
 }
 
