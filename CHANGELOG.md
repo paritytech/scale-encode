@@ -4,6 +4,13 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## [v0.9.0] - 2024-11-11
+
+This release makes scale-encode entirely no_std which is now using core::error::Error instead of std::error::Error as it was using before behind the std feature. Because of that the std feature is now removed and the MSRV is bumped to 1.81.0.
+
+### Changed
+- chore(deps): use core::error::Error and make no_std ([#30](https://github.com/paritytech/scale-encode/pull/30))
+
 ## [v0.8.0] - 2024-10-21
 
 - chore(deps): bump derive_more from 0.99 to 1.0 ([#26](https://github.com/paritytech/scale-encode/pull/26))

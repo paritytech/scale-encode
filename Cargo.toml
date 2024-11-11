@@ -3,7 +3,7 @@ members = ["scale-encode", "scale-encode-derive", "testing/no_std"]
 resolver = "2"
 
 [workspace.package]
-version = "0.8.0"
+version = "0.9.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 license = "Apache-2.0"
