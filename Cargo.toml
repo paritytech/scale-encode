@@ -14,5 +14,5 @@ include = ["Cargo.toml", "src/**/*.rs", "README.md", "LICENSE"]
 rust-version = "1.81.0"
 
 [workspace.dependencies]
-scale-encode = { version = "0.8.0", path = "scale-encode" }
-scale-encode-derive = { version = "0.8.0", path = "scale-encode-derive" }
+scale-encode = { version = "0.9.0", path = "scale-encode" }
+scale-encode-derive = { version = "0.9.0", path = "scale-encode-derive" }
