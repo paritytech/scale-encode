@@ -28,8 +28,7 @@ pub struct Error {
     kind: ErrorKind,
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for Error {}
+impl core::error::Error for Error {}
 
 impl Error {
     /// Construct a new error given an error kind.
@@ -40,24 +39,22 @@ impl Error {
         }
     }
     /// Construct a new, custom error.
-    pub fn custom(error: impl CustomError) -> Error {
+    pub fn custom(error: impl core::error::Error + Send + Sync + 'static) -> Error {
         Error::new(ErrorKind::Custom(Box::new(error)))
     }
     /// Construct a custom error from a static string.
     pub fn custom_str(error: &'static str) -> Error {
-        #[derive(derive_more::Display, Debug)]
+        #[derive(Debug, thiserror::Error)]
+        #[error("{0}")]
         pub struct StrError(pub &'static str);
-        #[cfg(feature = "std")]
-        impl std::error::Error for StrError {}
 
         Error::new(ErrorKind::Custom(Box::new(StrError(error))))
     }
     /// Construct a custom error from an owned string.
     pub fn custom_string(error: String) -> Error {
-        #[derive(derive_more::Display, Debug)]
+        #[derive(Debug, thiserror::Error)]
+        #[error("{0}")]
         pub struct StringError(String);
-        #[cfg(feature = "std")]
-        impl std::error::Error for StringError {}
 
         Error::new(ErrorKind::Custom(Box::new(StringError(error))))
     }
@@ -112,16 +109,16 @@ impl Display for Error {
 }
 
 /// The underlying nature of the error.
-#[derive(Debug, derive_more::From, derive_more::Display)]
+#[derive(Debug, thiserror::Error)]
 pub enum ErrorKind {
     /// There was an error resolving the type via the given [`crate::TypeResolver`].
-    #[display("Failed to resolve type: {_0}")]
+    #[error("Failed to resolve type: {0}")]
     TypeResolvingError(String),
     /// Cannot find a given type.
-    #[display("Cannot find type with identifier {_0}")]
+    #[error("Cannot find type with identifier {0}")]
     TypeNotFound(String),
     /// Cannot encode the actual type given into the target type ID.
-    #[display("Cannot encode {actual:?} into type with ID {expected_id}")]
+    #[error("Cannot encode {actual:?} into type with ID {expected_id}")]
     WrongShape {
         /// The actual kind we have to encode
         actual: Kind,
@@ -129,7 +126,7 @@ pub enum ErrorKind {
         expected_id: String,
     },
     /// The types line up, but the expected length of the target type is different from the length of the input value.
-    #[display("Cannot encode to type; expected length {expected_len} but got length {actual_len}")]
+    #[error("Cannot encode to type; expected length {expected_len} but got length {actual_len}")]
     WrongLength {
         /// Length we have
         actual_len: usize,
@@ -137,7 +134,7 @@ pub enum ErrorKind {
         expected_len: usize,
     },
     /// We cannot encode the number given into the target type; it's out of range.
-    #[display("Number {value} is out of range for target type with identifier {expected_id}")]
+    #[error("Number {value} is out of range for target type with identifier {expected_id}")]
     NumberOutOfRange {
         /// A string represenatation of the numeric value that was out of range.
         value: String,
@@ -145,7 +142,7 @@ pub enum ErrorKind {
         expected_id: String,
     },
     /// Cannot find a variant with a matching name on the target type.
-    #[display("Variant {name} does not exist on type with identifier {expected_id}")]
+    #[error("Variant {name} does not exist on type with identifier {expected_id}")]
     CannotFindVariant {
         /// Variant name we can't find in the expected type.
         name: String,
@@ -153,28 +150,15 @@ pub enum ErrorKind {
         expected_id: String,
     },
     /// Cannot find a field on our source type that's needed for the target type.
-    #[display("Field {name} does not exist in our source struct")]
+    #[error("Field {name} does not exist in our source struct")]
     CannotFindField {
         /// Name of the field which was not provided.
         name: String,
     },
     /// A custom error.
-    #[from]
-    #[display("Custom error: {_0}")]
-    Custom(Box<dyn CustomError>),
+    #[error("Custom error: {0}")]
+    Custom(Box<dyn core::error::Error + Send + Sync + 'static>),
 }
-
-/// Anything implementing this trait can be used in [`ErrorKind::Custom`].
-#[cfg(feature = "std")]
-pub trait CustomError: std::error::Error + Send + Sync + 'static {}
-#[cfg(feature = "std")]
-impl<T: std::error::Error + Send + Sync + 'static> CustomError for T {}
-
-/// Anything implementing this trait can be used in [`ErrorKind::Custom`].
-#[cfg(not(feature = "std"))]
-pub trait CustomError: core::fmt::Debug + core::fmt::Display + Send + Sync + 'static {}
-#[cfg(not(feature = "std"))]
-impl<T: core::fmt::Debug + core::fmt::Display + Send + Sync + 'static> CustomError for T {}
 
 /// The kind of type that we're trying to encode.
 #[allow(missing_docs)]
@@ -189,23 +173,4 @@ pub enum Kind {
     Char,
     Str,
     Number,
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[derive(Debug, derive_more::Display)]
-    enum MyError {
-        Foo,
-    }
-
-    #[cfg(feature = "std")]
-    impl std::error::Error for MyError {}
-
-    #[test]
-    fn custom_error() {
-        // Just a compile-time check that we can ergonomically provide an arbitrary custom error:
-        Error::custom(MyError::Foo);
-    }
 }
