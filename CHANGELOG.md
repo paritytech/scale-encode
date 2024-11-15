@@ -4,6 +4,10 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## [0.10.0] - 2024-11-15
+
+This release updates scale-bits to 0.7.0 which is exposed in the public API of scale-encode.
+
 ## [v0.9.0] - 2024-11-11
 
 This release makes scale-encode entirely no_std which is now using core::error::Error instead of std::error::Error as it was using before behind the std feature. Because of that the std feature is now removed and the MSRV is bumped to 1.81.0.
