@@ -453,6 +453,94 @@ impl<K: AsRef<str>, V: EncodeAsType> EncodeAsFields for BTreeMap<K, V> {
     }
 }
 
+impl<const N: usize, V: EncodeAsType> EncodeAsFields for [V; N] {
+    fn encode_as_fields_to<R: TypeResolver>(
+        &self,
+        fields: &mut dyn FieldIter<'_, R::TypeId>,
+        types: &R,
+        out: &mut Vec<u8>,
+    ) -> Result<(), Error> {
+        Composite::new(self.iter().map(|v| (None, CompositeField::new(v))))
+            .encode_composite_fields_to(fields, types, out)
+    }
+}
+
+impl<V: EncodeAsType> EncodeAsFields for &[V] {
+    fn encode_as_fields_to<R: TypeResolver>(
+        &self,
+        fields: &mut dyn FieldIter<'_, R::TypeId>,
+        types: &R,
+        out: &mut Vec<u8>,
+    ) -> Result<(), Error> {
+        Composite::new(self.iter().map(|v| (None, CompositeField::new(v))))
+            .encode_composite_fields_to(fields, types, out)
+    }
+}
+
+impl<V: EncodeAsType> EncodeAsFields for Vec<V> {
+    fn encode_as_fields_to<R: TypeResolver>(
+        &self,
+        fields: &mut dyn FieldIter<'_, R::TypeId>,
+        types: &R,
+        out: &mut Vec<u8>,
+    ) -> Result<(), Error> {
+        Composite::new(self.iter().map(|v| (None, CompositeField::new(v))))
+            .encode_composite_fields_to(fields, types, out)
+    }
+}
+
+macro_rules! impl_tuple_encode_as_fields {
+    ($($param:ident $idx:tt),+) => {
+        impl <$($param: EncodeAsType),+> EncodeAsFields for ($($param,)+) {
+            fn encode_as_fields_to<R: TypeResolver>(
+                &self,
+                fields: &mut dyn FieldIter<'_, R::TypeId>,
+                types: &R,
+                out: &mut Vec<u8>,
+            ) -> Result<(), Error> {
+                Composite::new(
+                    [
+                        $(
+                            (None, CompositeField::new(&self.$idx))
+                        ),+
+                    ].into_iter(),
+                )
+                .encode_composite_fields_to(fields, types, out)
+            }
+        }
+    }
+}
+
+impl_tuple_encode_as_fields!(A 0);
+impl_tuple_encode_as_fields!(A 0, B 1);
+impl_tuple_encode_as_fields!(A 0, B 1, C 2);
+impl_tuple_encode_as_fields!(A 0, B 1, C 2, D 3);
+impl_tuple_encode_as_fields!(A 0, B 1, C 2, D 3, E 4);
+impl_tuple_encode_as_fields!(A 0, B 1, C 2, D 3, E 4, F 5);
+impl_tuple_encode_as_fields!(A 0, B 1, C 2, D 3, E 4, F 5, G 6);
+impl_tuple_encode_as_fields!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7);
+impl_tuple_encode_as_fields!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8);
+impl_tuple_encode_as_fields!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9);
+impl_tuple_encode_as_fields!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9, K 10);
+
+impl EncodeAsFields for () {
+    fn encode_as_fields_to<R: TypeResolver>(
+        &self,
+        fields: &mut dyn FieldIter<'_, R::TypeId>,
+        _types: &R,
+        _out: &mut Vec<u8>,
+    ) -> Result<(), Error> {
+        if fields.len() != 0 {
+            Err(Error::new(ErrorKind::WrongLength {
+                actual_len: 0,
+                expected_len: fields.len(),
+            }))
+        } else {
+            Ok(())
+        }
+    }
+}
+
 // Generate EncodeAsType impls for simple types that can be easily transformed
 // into types we have impls for already.
 macro_rules! impl_encode_like {
@@ -1102,7 +1190,39 @@ mod test {
                 some_field: 3,
                 another: 2,
             },
-        )
+        );
+
+        assert_encodes_fields_like_type(
+            (1u64, 2u8),
+            Foo {
+                some_field: 1,
+                another: 2,
+            },
+        );
+
+        assert_encodes_fields_like_type(
+            vec![1u64, 2u64],
+            Foo {
+                some_field: 1,
+                another: 2,
+            },
+        );
+
+        assert_encodes_fields_like_type(
+            [1u64, 2u64],
+            Foo {
+                some_field: 1,
+                another: 2,
+            },
+        );
+
+        assert_encodes_fields_like_type(
+            &[1u64, 2u64][..],
+            Foo {
+                some_field: 1,
+                another: 2,
+            },
+        );
     }
 
     #[test]
