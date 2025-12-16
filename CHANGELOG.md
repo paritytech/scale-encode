@@ -4,6 +4,10 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## [0.10.1] - 2025-12-16
+
+Add implementations of `EncodeAsFields` for `Vec<T>`, `[T; N]`, `&[T]` and tuples, so long as the values implement `EncodeAsType`.
+
 ## [0.10.0] - 2024-11-15
 
 This release updates scale-bits to 0.7.0 which is exposed in the public API of scale-encode.
