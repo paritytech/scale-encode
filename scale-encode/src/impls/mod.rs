@@ -132,7 +132,7 @@ impl EncodeAsType for str {
     }
 }
 
-impl<'a, T> EncodeAsType for &'a T
+impl<T> EncodeAsType for &T
 where
     T: EncodeAsType + ?Sized,
 {
