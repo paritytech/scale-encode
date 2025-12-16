@@ -1283,6 +1283,7 @@ mod test {
     }
 
     #[test]
+    #[allow(unused_assignments)]
     fn encode_to_number_skipping_attrs_via_macro_works() {
         struct NotEncodeAsType;
 
