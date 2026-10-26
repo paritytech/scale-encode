@@ -31,7 +31,7 @@ codec = { package = "parity-scale-codec", version = "3.0.0", default-features = 
 scale-type-resolver = { version = "0.2.0", default-features = false, features = ["visitor"] }
 scale-bits = { version = "0.7.0", default-features = false, optional = true }
 scale-encode-derive = { workspace = true, optional = true }
-primitive-types = { version = "0.13.1", optional = true, default-features = false }
+primitive-types = { version = "0.14.0", optional = true, default-features = false }
 smallvec = "1.10.0"
 thiserror = { version = "2.0.0", default-features = false }
 
@@ -42,5 +42,5 @@ scale-encode-derive = { workspace = true }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive", "bit-vec"] }
 trybuild = "1.0.72"
 # enable scale-info feature for testing:
-primitive-types = { version = "0.13.1", default-features = false, features = ["scale-info"] }
+primitive-types = { version = "0.14.0", default-features = false, features = ["scale-info"] }
 scale-type-resolver = { version = "0.2.0", default-features = false, features = ["scale-info"] }
